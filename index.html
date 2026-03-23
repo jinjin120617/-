@@ -216,45 +216,37 @@ tr.sum-row td { font-weight: 700; background: var(--bg); border-top: 1px solid v
 </style>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, deleteDoc, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const _app = initializeApp({
-    apiKey: "AIzaSyAjZvvCZrSgyw3HUyPONf81ZgOg2WRsMjs",
-    authDomain: "emergencyproject-6655.firebaseapp.com",
-    projectId: "emergencyproject-6655",
-    storageBucket: "emergencyproject-6655.firebasestorage.app",
-    messagingSenderId: "869108608124",
-    appId: "1:869108608124:web:7634249f3f086e0d892df9"
+    apiKey: "AIzaSyDsqwVHBu4fX4RHLIcZmXCKtggOYp4eDJ4",
+    authDomain: "seoulemergency.firebaseapp.com",
+    projectId: "seoulemergency",
+    storageBucket: "seoulemergency.firebasestorage.app",
+    messagingSenderId: "93536321017",
+    appId: "1:93536321017:web:6d55d076b7ce64482d9128"
   });
   const _db = getFirestore(_app);
 
-  // Firestore 저장
   window.fbSave = async function(caseData) {
-    try {
-      await setDoc(doc(_db, "cases", caseData.id), caseData);
-    } catch(e) { console.error("저장 오류:", e); }
+    try { await setDoc(doc(_db, "cases", caseData.id), caseData); }
+    catch(e) { console.error("저장 오류:", e); }
   };
 
-  // Firestore 삭제
   window.fbDelete = async function(caseId) {
-    try {
-      await deleteDoc(doc(_db, "cases", caseId));
-    } catch(e) { console.error("삭제 오류:", e); }
+    try { await deleteDoc(doc(_db, "cases", caseId)); }
+    catch(e) { console.error("삭제 오류:", e); }
   };
 
-  // 실시간 동기화
   window.fbListen = function(callback) {
     const q = query(collection(_db, "cases"), orderBy("regDate", "desc"));
     return onSnapshot(q, (snapshot) => {
       const cases = [];
-      snapshot.forEach(doc => cases.push(doc.data()));
+      snapshot.forEach(d => cases.push(d.data()));
       callback(cases);
-    }, (error) => {
-      console.error("실시간 동기화 오류:", error);
-    });
+    }, (err) => console.error("동기화 오류:", err));
   };
 
-  // 초기 로드 완료 알림
   window.fbReady = true;
   window.dispatchEvent(new Event('fbReady'));
 </script>
@@ -712,22 +704,16 @@ let DB = {
 
 function saveDB() {
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
-  // Firebase 저장
-  if (window.fbSave) {
-    DB.cases.forEach(c => window.fbSave(c));
-  }
+  if (window.fbSave) DB.cases.forEach(c => window.fbSave(c));
 }
-
 function saveSingleCase(c) {
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
   if (window.fbSave) window.fbSave(c);
 }
-
 function deleteSingleCase(id) {
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
   if (window.fbDelete) window.fbDelete(id);
 }
-
 function loadDB() {
   try {
     const s = localStorage.getItem('relief_db');
@@ -1443,30 +1429,20 @@ function exportExcel() { showToast('엑셀 내보내기 기능은 Firebase 연�
 loadDB();
 renderDashboard();
 
-// Firebase 실시간 동기화 연결
 function connectFirebase() {
-  if (window.fbListen) {
-    document.getElementById('firebase-banner').style.display = 'none';
-    window.fbListen((cases) => {
-      if (cases.length > 0) {
-        DB.cases = cases;
-        try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
-        const activePage = document.querySelector('.page.active');
-        if (activePage) {
-          const id = activePage.id.replace('page-','');
-          renderPage(id);
-        }
-      }
-    });
-    console.log("✅ Firebase 실시간 동기화 연결됨");
-  }
+  if (!window.fbListen) return;
+  document.getElementById('firebase-banner').style.display = 'none';
+  window.fbListen((cases) => {
+    if (cases.length > 0) {
+      DB.cases = cases;
+      try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
+      const activePage = document.querySelector('.page.active');
+      if (activePage) renderPage(activePage.id.replace('page-',''));
+    }
+  });
 }
-
-if (window.fbReady) {
-  connectFirebase();
-} else {
-  window.addEventListener('fbReady', connectFirebase);
-}
+if (window.fbReady) connectFirebase();
+else window.addEventListener('fbReady', connectFirebase);
 </script>
 </body>
 </html>
