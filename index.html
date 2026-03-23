@@ -785,32 +785,200 @@ function renderPage(id) {
 // ════════════════════════════════════════
 // 대시보드
 // ════════════════════════════════════════
+let dashFilter = '전체';
+
 function renderDashboard() {
   const cases = DB.cases;
+  const inProgress = cases.filter(c=>c.status!=='done');
+  const done = cases.filter(c=>c.status==='done');
+  const transitItems = cases.flatMap(c=>c.items.filter(it=>it.stepIdx===1)).length;
+
+  // 참여 기관 평균
+  const orgCounts = inProgress.map(c=>(c.orgs||[]).length);
+  const avgOrgs = orgCounts.length > 0 ? Math.round(orgCounts.reduce((a,b)=>a+b,0)/orgCounts.length) : 0;
+
   document.getElementById('m-total').textContent = cases.length;
-  document.getElementById('m-transit').textContent = cases.filter(c=>c.status==='transit').length;
-  document.getElementById('m-done').textContent = cases.filter(c=>c.status==='done').length;
-  document.getElementById('m-prep').textContent = cases.filter(c=>c.status==='preparing').length;
-  document.getElementById('dash-sub').textContent = `서울시 대외협력과 · 총 ${cases.length}건 등록됨`;
+  document.getElementById('m-transit').textContent = transitItems;
+  document.getElementById('m-done').textContent = done.length;
+  document.getElementById('m-done-sub').textContent = done.length > 0 ? done.map(c=>c.sigungu.split(' ').slice(-1)[0]).slice(0,2).join('·') : '건';
+  document.getElementById('m-prep').textContent = avgOrgs > 0 ? avgOrgs + '곳' : '-';
+
+  // 진행중 배지
+  const badge = document.getElementById('dash-active-badge');
+  const countEl = document.getElementById('dash-active-count');
+  if (inProgress.length > 0) {
+    badge.style.display = 'inline-flex';
+    countEl.textContent = `진행중 ${inProgress.length}건`;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // 연도
+  const yr = cases.length > 0 ? new Date().getFullYear() : new Date().getFullYear();
+  document.getElementById('dash-year').textContent = yr;
+
   if (!USE_FIREBASE) document.getElementById('firebase-banner').style.display='block';
+  renderDashList();
+  renderDashFilterBar();
+}
+
+function renderDashFilterBar() {
+  const filters = ['전체','이송 중','준비 중','수령 완료','수령 확인 대기'];
+  document.getElementById('dash-filter-bar').innerHTML = filters.map(f =>
+    `<button onclick="setDashFilter('${f}')" style="font-size:12px;padding:5px 14px;border-radius:99px;border:1px solid ${dashFilter===f?'var(--blue)':'var(--border)'};background:${dashFilter===f?'var(--blue)':'transparent'};color:${dashFilter===f?'#fff':'var(--text-sub)'};cursor:pointer;font-family:var(--font);">${f}</button>`
+  ).join('');
+}
+
+function setDashFilter(f) {
+  dashFilter = f;
+  renderDashFilterBar();
   renderDashList();
 }
 
 function switchDashTab(tab, btn) {
   document.querySelectorAll('#page-dashboard .tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  ['list','region','org'].forEach(id => {
-    document.getElementById('dash-'+id).style.display = id===tab ? 'block' : 'none';
+  ['list','done','region','org'].forEach(id => {
+    const el = document.getElementById('dash-'+id);
+    if(el) el.style.display = id===tab ? 'block' : 'none';
   });
-  if (tab==='region') renderDashRegion();
-  else if (tab==='org') renderDashOrg();
+  const filterBar = document.getElementById('dash-filter-bar');
+  if(filterBar) filterBar.style.display = tab==='list' ? 'flex' : 'none';
+  if (tab==='org') renderDashOrg();
+  else if (tab==='done') renderDashDone();
   else renderDashList();
 }
 
+function renderDashDone() {
+  const done = DB.cases.filter(c=>c.status==='done');
+  document.getElementById('dash-done').innerHTML = done.length === 0
+    ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">완료된 지원 건이 없어요</div>'
+    : done.map(c => dashCaseCardHTML(c)).join('');
+}
+
 function renderDashList() {
-  document.getElementById('dash-list').innerHTML = DB.cases.length === 0
-    ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>'
-    : DB.cases.map(c => caseCardHTML(c, true)).join('');
+  const inProgress = DB.cases.filter(c=>c.status!=='done');
+  let filtered = inProgress;
+  if (dashFilter === '이송 중') filtered = inProgress.filter(c=>c.status==='transit');
+  else if (dashFilter === '준비 중') filtered = inProgress.filter(c=>c.status==='preparing');
+  else if (dashFilter === '수령 완료') filtered = inProgress.filter(c=>c.status==='done');
+  else if (dashFilter === '수령 확인 대기') filtered = inProgress.filter(c=>c.status==='arrived');
+
+  document.getElementById('dash-list').innerHTML = filtered.length === 0
+    ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">해당하는 지원 건이 없어요</div>'
+    : filtered.map(c => dashCaseCardHTML(c)).join('');
+}
+
+function dashCaseCardHTML(c) {
+  const departFmt = c.depart ? c.depart.replace('T',' ') : '-';
+  const arriveFmt = c.arrive ? c.arrive.replace('T',' ') : '-';
+  const totalQty = c.items.reduce((s,it)=>s+currentQty(it),0);
+
+  // 5단계 진행바
+  const stepIdx = c.status==='preparing'?1:c.status==='transit'?2:c.status==='arrived'?3:c.status==='done'?4:0;
+  const stepLabels = ['지원 결정','물품 준비','이송 중','현장 도착','수령 완료'];
+  const stepsHtml = stepLabels.map((label,i) => {
+    const isDone = i < stepIdx, isActive = i === stepIdx;
+    const dotBg = isDone ? 'var(--green)' : isActive ? '#EF9F27' : 'var(--gray-mid)';
+    const dotContent = isDone ? '✓' : isActive ? '→' : i+1;
+    const dotColor = (isDone||isActive) ? '#fff' : 'var(--text-hint)';
+    const lineColor = isDone ? 'var(--green)' : 'var(--gray-mid)';
+    return `
+      ${i>0?`<div style="flex:1;height:2px;background:${lineColor};margin-bottom:14px;"></div>`:''}
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:22px;height:22px;border-radius:50%;background:${dotBg};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:${dotColor};flex-shrink:0;">${dotContent}</div>
+        <div style="font-size:10px;color:${isActive?'var(--text)':'var(--text-hint)'};margin-top:4px;text-align:center;font-weight:${isActive?'600':'400'};">${label}</div>
+      </div>`;
+  }).join('');
+
+  // 물품 태그
+  const mainTags = c.items.slice(0,3).map(it=>`<span style="font-size:11px;background:var(--blue-light);color:var(--blue);border:1px solid var(--blue-mid);padding:3px 8px;border-radius:var(--radius-sm);font-weight:500;">${it.name} × ${currentQty(it).toLocaleString()}${it.history[0].unit||''}</span>`).join('');
+  const restTags = c.items.slice(3).map(it=>`<span style="font-size:11px;background:var(--bg);color:var(--text-sub);border:1px solid var(--border);padding:3px 8px;border-radius:var(--radius-sm);">${it.name} × ${currentQty(it).toLocaleString()}${it.history[0].unit||''}</span>`).join('');
+
+  // 참여기관 카드
+  const orgsHtml = (c.orgs||[]).map(o => {
+    const initial = o.name[0];
+    const colors = {
+      '대한적십자사':{bg:'#FCEBEB',color:'#A32D2D'},
+      '재해구호협회':{bg:'#EAF3DE',color:'#27500A'},
+      '서울자원봉사센터':{bg:'#FAEEDA',color:'#633806'},
+      '복지실':{bg:'#FAEEDA',color:'#633806'},
+      '외식업협회':{bg:'#FBEAF0',color:'#72243E'},
+      '시민협력과':{bg:'#FBEAF0',color:'#72243E'},
+      '재난안전실':{bg:'#F1EFE8',color:'#444441'},
+      '대외협력과':{bg:'#E6F1FB',color:'#0C447C'},
+    };
+    const cs = colors[o.name]||{bg:'#E6F1FB',color:'#0C447C'};
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);">
+      <div style="width:28px;height:28px;border-radius:var(--radius-sm);background:${cs.bg};color:${cs.color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${initial}</div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text);">${o.name}</div>
+        <div style="font-size:10px;color:var(--text-hint);">${o.role}</div>
+      </div>
+      <div style="width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:auto;flex-shrink:0;"></div>
+    </div>`;
+  }).join('');
+
+  return `<div class="case-card" style="margin-bottom:12px;">
+    <!-- 헤더: 수령기관 + 상태 -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">${c.sigungu} ${c.type} 구호 지원</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:2px;">수령기관: ${c.to} · 담당자: ${c.toDept}</div>
+      </div>
+      <span class="badge ${STATUS_CLASS[c.status]}" style="font-size:12px;padding:4px 12px;"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
+    </div>
+
+    <!-- 출발·도착 정보 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:3px;">출발</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${departFmt}</div>
+        <div style="font-size:11px;color:var(--text-sub);">${c.from}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:3px;">도착 예정</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${arriveFmt}</div>
+        <div style="font-size:11px;color:var(--text-sub);">${c.to}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:3px;">차량/운송</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${c.vehicle}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:3px;">총 물품</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${c.items.length}종 · ${totalQty.toLocaleString()}점</div>
+      </div>
+    </div>
+
+    <!-- 물품 태그 -->
+    <div style="padding:10px 20px;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;color:var(--text-hint);margin-bottom:6px;">지원 물품</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">${mainTags}${restTags}</div>
+    </div>
+
+    <!-- 진행 단계 -->
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:0;">${stepsHtml}</div>
+    </div>
+
+    ${(c.orgs&&c.orgs.length>0) ? `
+    <!-- 참여 기관 -->
+    <div style="padding:10px 20px;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;color:var(--text-hint);margin-bottom:8px;">참여 기관 현황 (${c.sigungu} 건)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;">${orgsHtml}</div>
+    </div>` : ''}
+
+    <!-- 액션 버튼 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--bg);flex-wrap:wrap;gap:8px;">
+      <span style="font-size:11px;color:var(--text-hint);">등록: ${c.registrant} · ${c.regDate}</span>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="showPage('shipment')" style="color:var(--blue);border-color:var(--blue-mid);">이송 현황 보기</button>
+        ${c.status!=='done'?`<button class="btn btn-sm" style="color:var(--green);border-color:var(--green-mid);" onclick="openReceiptModal('${c.id}')">수령 확인</button>`:'<span class="badge badge-done"><span class="badge-dot"></span>수령 완료</span>'}
+        <button class="btn btn-sm btn-danger" onclick="openDeleteModal('${c.id}')">삭제</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function caseCardHTML(c, showActions) {
