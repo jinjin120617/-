@@ -881,9 +881,32 @@ function renderDashOrg() {
 const openTL = new Set();
 
 function renderShipment() {
-  document.getElementById('shipment-list').innerHTML = DB.cases.map(c => {
-    const groups = groupByCat(c.items);
-    const itemsHtml = groups.map(g => {
+  if (!DB.cases.length) {
+    document.getElementById('shipment-list').innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>';
+    return;
+  }
+
+  // 동일 발송지·수령지 기준으로 그룹핑
+  const groups = [];
+  DB.cases.forEach(c => {
+    const key = c.from + '||' + c.to;
+    const existing = groups.find(g => g.key === key);
+    if (existing) existing.cases.push(c);
+    else groups.push({ key, from: c.from, to: c.to, toDept: c.toDept, date: c.depart ? c.depart.replace('T',' ').slice(5,10) : '-', cases: [c] });
+  });
+
+  document.getElementById('shipment-list').innerHTML = groups.map(group => {
+    const allItems = group.cases.flatMap(c => c.items.map(it => ({...it, caseId: c.id, caseName: c.sigungu + ' ' + c.type})));
+    const catGroups = [];
+    const order = ['진화장비','구호물품','식사·간식','음료류','가전·시설'];
+    const catMap = {};
+    allItems.forEach(it => { if(!catMap[it.cat]) catMap[it.cat]=[]; catMap[it.cat].push(it); });
+    order.filter(k=>catMap[k]).forEach(k => catGroups.push({cat:k, items:catMap[k]}));
+
+    const doneCount = allItems.filter(it=>it.stepIdx===3).length;
+    const transitCount = allItems.filter(it=>it.stepIdx===1).length;
+
+    const itemsHtml = catGroups.map(g => {
       const cs = CAT_STYLE[g.cat] || {bg:'#F2F2F2',color:'#444'};
       return `<div style="margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
@@ -897,23 +920,51 @@ function renderShipment() {
           return `<div class="item-block">
             <div class="item-row" onclick="toggleTL('${item.id}')">
               <span class="item-name">${item.name}</span>
+              <span style="font-size:11px;color:var(--text-hint);margin-right:4px;">${item.caseName}</span>
               <span class="item-qty">${currentQty(item).toLocaleString()} ${item.history[0].unit||''}</span>
               <span class="badge ${sc}" style="margin-left:4px;"><span class="badge-dot"></span>${sl}</span>
-              <span class="cat-arrow ${isOpen?'open':''}" style="font-size:10px;color:var(--text-hint);margin-left:4px;">▾</span>
+              <span style="font-size:10px;color:var(--text-hint);margin-left:4px;">${isOpen?'▴':'▾'}</span>
             </div>
-            ${isOpen ? renderTLPanel(c.id, item) : ''}
+            ${isOpen ? renderTLPanel(item.caseId, item) : ''}
           </div>`;
         }).join('')}
       </div>`;
     }).join('');
+
+    // 발송지·수령지 화살표 (그룹 내 날짜 범위)
+    const dates = group.cases.map(c => c.depart ? c.depart.slice(5,10).replace('-','.') : '').filter(Boolean);
+    const dateLabel = [...new Set(dates)].join(', ');
+
     return `<div class="case-card">
-      ${caseHeroHTML(c)}
+      <div class="case-hero">
+        <div class="loc">
+          <div class="loc-label">발송지</div>
+          <div class="loc-name">${group.from}</div>
+          <div class="loc-dept">서울시 대외협력과</div>
+        </div>
+        <div class="arrow">
+          <div class="arrow-line"><div class="arrow-shaft"></div><div class="arrow-head"></div></div>
+          <div class="arrow-date">${dateLabel} 출발</div>
+        </div>
+        <div class="loc right">
+          <div class="loc-label">수령지</div>
+          <div class="loc-name">${group.to}</div>
+          <div class="loc-dept">${group.toDept}</div>
+        </div>
+      </div>
       <div class="case-body">
-        <div style="font-size:11px;font-weight:600;color:var(--text-hint);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px;">물품별 이송 현황</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-hint);letter-spacing:0.05em;text-transform:uppercase;">물품별 이송 현황</div>
+          <div style="font-size:11px;color:var(--text-hint);">총 ${allItems.length}종 · 수령완료 ${doneCount}종 · 이송중 ${transitCount}종</div>
+        </div>
         ${itemsHtml}
       </div>
+      <div class="case-footer">
+        <span style="font-size:11px;color:var(--text-sub);">수령 완료 <strong>${doneCount}/${allItems.length}종</strong></span>
+        <span style="font-size:11px;color:var(--text-hint);">물품 클릭 시 단계별 시각 기록 가능</span>
+      </div>
     </div>`;
-  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>';
+  }).join('');
 }
 
 function caseHeroHTML(c) {
@@ -928,6 +979,9 @@ function caseHeroHTML(c) {
 function toggleTL(itemId) {
   openTL.has(itemId) ? openTL.delete(itemId) : openTL.add(itemId);
   renderShipment();
+  // Firebase 재동기화로 인한 즉시 덮어쓰기 방지
+  window._tlLock = true;
+  setTimeout(() => { window._tlLock = false; }, 1500);
 }
 
 function renderTLPanel(caseId, item) {
@@ -1432,12 +1486,20 @@ renderDashboard();
 function connectFirebase() {
   if (!window.fbListen) return;
   document.getElementById('firebase-banner').style.display = 'none';
+  let isFirst = true;
   window.fbListen((cases) => {
-    if (cases.length > 0) {
+    if (cases.length > 0 || isFirst) {
+      isFirst = false;
       DB.cases = cases;
       try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
+      // 이송현황 페이지는 사용자가 타임라인 열어놨을 수 있으므로 외부 변경 시만 재렌더
       const activePage = document.querySelector('.page.active');
-      if (activePage) renderPage(activePage.id.replace('page-',''));
+      if (activePage) {
+        const pageId = activePage.id.replace('page-','');
+        // 타임라인 열려있을 때 Firebase 재동기화로 닫히는 것 방지
+        if (pageId === 'shipment' && window._tlLock) return;
+        renderPage(pageId);
+      }
     }
   });
 }
