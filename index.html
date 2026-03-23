@@ -271,7 +271,7 @@ tr.sum-row td { font-weight: 700; background: var(--bg); border-top: 1px solid v
         <span class="nav-icon">🚛</span> 이송 현황
       </div>
       <div class="nav-item" onclick="showPage('items')">
-        <span class="nav-icon">📦</span> 물품 수량 수정
+        <span class="nav-icon">✏️</span> 지원 건 수정·관리
       </div>
       <div class="nav-item" onclick="showPage('receipt')">
         <span class="nav-icon">✅</span> 수령 확인 처리
@@ -848,9 +848,10 @@ function caseCardHTML(c, showActions) {
       <div class="goods-tags">${mainItems}${restItems}</div>
     </div>
     <div class="case-footer">
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span class="badge ${STATUS_CLASS[c.status]}"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
         <span style="font-size:11px;color:var(--text-hint);">${c.vehicle} · 등록: ${c.registrant}</span>
+        ${c.orgs && c.orgs.length > 0 ? `<span style="font-size:11px;color:var(--text-hint);">참여기관: ${c.orgs.map(o=>o.name).join(', ')}</span>` : ''}
       </div>
       ${actions}
     </div>
@@ -872,7 +873,54 @@ function renderDashRegion() {
 }
 
 function renderDashOrg() {
-  document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body"><p style="color:var(--text-sub);font-size:13px;">기관별 물품 입력 데이터가 쌓이면 여기에 표시돼요.</p></div></div>`;
+  // 모든 지원 건에서 기관별로 집계
+  const orgMap = {};
+  DB.cases.forEach(c => {
+    if (!c.orgs || c.orgs.length === 0) return;
+    c.orgs.forEach(o => {
+      if (!orgMap[o.name]) {
+        orgMap[o.name] = { name: o.name, role: o.role, cases: [], totalItems: 0 };
+      }
+      orgMap[o.name].cases.push(c);
+      orgMap[o.name].totalItems += c.items.reduce((s, it) => s + currentQty(it), 0);
+    });
+  });
+
+  const orgs = Object.values(orgMap);
+
+  if (orgs.length === 0) {
+    document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">신규 지원 등록 시 참여 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
+    return;
+  }
+
+  const rows = orgs.map((o, i) => {
+    const caseNames = o.cases.map(c => `${c.sigungu} ${c.type}`).join(', ');
+    const statuses = o.cases.map(c => `<span class="badge ${STATUS_CLASS[c.status]}" style="font-size:10px;"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>`).join(' ');
+    return `<tr>
+      <td>${i+1}</td>
+      <td class="left" style="font-weight:600;">${o.name}</td>
+      <td style="color:var(--text-sub);font-size:12px;">${o.role}</td>
+      <td>${o.cases.length}건</td>
+      <td class="sum">${o.totalItems.toLocaleString()}</td>
+      <td class="left" style="font-size:12px;color:var(--text-sub);">${caseNames}</td>
+      <td>${statuses}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body">
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th style="width:28px;">연번</th>
+        <th class="left">기관명</th>
+        <th class="left">역할</th>
+        <th>참여 건수</th>
+        <th>총 물품(점)</th>
+        <th class="left">참여 지원 건</th>
+        <th>상태</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div></div>`;
 }
 
 // ════════════════════════════════════════
@@ -1034,37 +1082,298 @@ function groupByCat(items) {
 let qtyModalTarget = null;
 const openHist = new Set();
 
+let editingCaseId = null;
+
 function renderItems() {
-  document.getElementById('items-list').innerHTML = DB.cases.map(c => {
-    const groups = groupByCat(c.items);
-    const itemsHtml = groups.map(g => {
-      const cs = CAT_STYLE[g.cat]||{bg:'#F2F2F2',color:'#444'};
-      return `<div style="margin-bottom:10px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${cs.bg};color:${cs.color};">${g.cat}</span>
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-        </div>
-        ${g.items.map(item => {
-          const cur = currentQty(item);
-          const hc = item.history.length;
-          const isOpen = openHist.has(item.id);
-          return `<div class="item-block">
-            <div class="item-row" onclick="toggleHist('${item.id}')">
-              <span class="item-name">${item.name}</span>
-              <span class="item-qty">${cur.toLocaleString()} ${item.history[0].unit||''}</span>
-              <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue-mid);" onclick="openQtyModal('${c.id}','${item.id}',event)">수량 변경</button>
-              <button class="btn btn-sm" onclick="toggleHist('${item.id}')" style="margin-left:2px;">이력 ${hc}회 ${isOpen?'▴':'▾'}</button>
+  if (editingCaseId) {
+    renderEditForm(editingCaseId);
+    return;
+  }
+  document.getElementById('items-list').innerHTML = DB.cases.length === 0
+    ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>'
+    : DB.cases.map(c => {
+      const totalQty = c.items.reduce((s,it)=>s+currentQty(it),0);
+      const departFmt = c.depart ? c.depart.replace('T',' ').slice(0,16) : '-';
+      return `<div class="case-card" style="margin-bottom:12px;">
+        ${caseHeroHTML(c)}
+        <div class="case-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px;">${c.sigungu} ${c.type}</div>
+              <div style="font-size:12px;color:var(--text-sub);">출발: ${departFmt} · ${c.vehicle} · 총 ${totalQty.toLocaleString()}점 ${c.items.length}종</div>
+              ${c.orgs&&c.orgs.length>0?`<div style="font-size:12px;color:var(--text-hint);margin-top:2px;">참여기관: ${c.orgs.map(o=>o.name).join(', ')}</div>`:''}
             </div>
-            ${isOpen ? renderHistPanel(item) : ''}
-          </div>`;
-        }).join('')}
+            <div style="display:flex;gap:6px;">
+              <span class="badge ${STATUS_CLASS[c.status]}"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
+              <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue-mid);" onclick="startEdit('${c.id}')">✏️ 수정</button>
+              <button class="btn btn-sm btn-danger" onclick="openDeleteModal('${c.id}')">삭제</button>
+            </div>
+          </div>
+        </div>
       </div>`;
     }).join('');
-    return `<div class="case-card">
-      ${caseHeroHTML(c)}
-      <div class="case-body">${itemsHtml}</div>
+}
+
+function startEdit(caseId) {
+  editingCaseId = caseId;
+  renderEditForm(caseId);
+}
+
+function cancelEdit() {
+  editingCaseId = null;
+  renderItems();
+}
+
+function renderEditForm(caseId) {
+  const c = DB.cases.find(c=>c.id===caseId);
+  if (!c) return;
+
+  // 편집용 임시 상태
+  if (!window._editItemState || window._editCaseId !== caseId) {
+    window._editCaseId = caseId;
+    window._editItemState = {};
+    window._editSelectedOrgs = new Set();
+    let rid = 1000;
+    CATS.forEach(cat => {
+      const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
+      const existing = c.items.filter(it=>it.cat===catLabel);
+      window._editItemState[cat.id] = existing.length > 0
+        ? existing.map(it=>({id:++rid, sub:it.name, customSub:'', qty:String(currentQty(it)), unit:it.history[0].unit||'개', origId:it.id}))
+        : [{id:++rid, sub:'', customSub:'', qty:'', unit:''}];
+    });
+    if (c.orgs) c.orgs.forEach(o=>window._editSelectedOrgs.add(o.id));
+  }
+
+  const catsHtml = CATS.map((cat,idx)=>{
+    const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
+    const rows = window._editItemState[cat.id];
+    const total = rows.reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const bodyRows = rows.map(r=>{
+      const isCustom = !cat.subs.slice(0,-1).includes(r.sub) && r.sub !== '';
+      const subVal = isCustom ? '직접 입력' : r.sub;
+      return `<div class="item-input-row">
+        <select class="form-input" style="padding:6px 8px;font-size:12px;" onchange="onEditSubChange('${cat.id}',${r.id},this.value)">
+          <option value="">소분류 선택</option>
+          ${cat.subs.map(s=>`<option ${subVal===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input class="form-input" type="text" placeholder="${subVal==='직접 입력'?'품목명 직접 입력':'─'}"
+          ${subVal==='직접 입력'?'':'disabled style="opacity:0.35;background:var(--bg);"'}
+          value="${isCustom?r.sub:r.customSub||''}" onchange="onEditCustomChange('${cat.id}',${r.id},this.value)" style="font-size:12px;">
+        <input class="qty-inp" type="number" min="0" placeholder="0" value="${r.qty}"
+          oninput="onEditQtyChange('${cat.id}',${r.id},this.value)">
+        <select class="unit-sel" onchange="onEditUnitChange('${cat.id}',${r.id},this.value)">
+          ${cat.units.map(u=>`<option ${r.unit===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+        <button class="del-btn" onclick="delEditRow('${cat.id}',${r.id})">✕</button>
+      </div>`;
+    }).join('');
+    return `<div class="cat-block">
+      <div class="cat-header" onclick="toggleEditCat('${cat.id}')">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${cat.color};color:${cat.textColor};">${idx+1}</span>
+        <span style="font-size:13px;font-weight:600;margin-left:2px;">${cat.name}</span>
+        <span style="font-size:11px;color:var(--text-hint);margin-left:4px;">${total>0?total.toLocaleString()+'점':''}</span>
+        <span class="cat-arrow open" id="ecarrow-${cat.id}">▾</span>
+      </div>
+      <div class="cat-body open" id="ecbody-${cat.id}">
+        <div class="col-labels" style="padding:0 0 4px;">
+          <div class="col-label">소분류</div><div class="col-label">직접 입력</div>
+          <div class="col-label" style="text-align:right;">수량</div><div class="col-label" style="text-align:center;">단위</div><div></div>
+        </div>
+        ${bodyRows}
+        <button class="add-sub-btn" onclick="addEditRow('${cat.id}')">+ 소분류 추가</button>
+      </div>
     </div>`;
-  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>';
+  }).join('');
+
+  const orgsHtml = ORGS.map(o=>`
+    <div class="org-toggle ${window._editSelectedOrgs.has(o.id)?'selected':''}" onclick="toggleEditOrg('${o.id}')">
+      <div class="org-check">${window._editSelectedOrgs.has(o.id)?'✓':''}</div>
+      <div><div class="org-name">${o.name}</div><div class="org-role">${o.role}</div></div>
+    </div>`).join('');
+
+  const departVal = c.depart||'';
+  const arriveVal = c.arrive||'';
+  const fromVal = ['서울시청 본관','마포 물류창고','서울 동부창고'].includes(c.from) ? c.from : '기타';
+  const fromCustomVal = fromVal==='기타' ? c.from : '';
+
+  document.getElementById('items-list').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;">${c.sigungu} ${c.type} · 수정</div>
+        <div style="font-size:13px;color:var(--text-sub);margin-top:2px;">등록자: ${c.registrant} · ${c.regDate}</div>
+      </div>
+      <button class="btn" onclick="cancelEdit()">← 목록으로</button>
+    </div>
+
+    <div class="section-block">
+      <div class="section-head">
+        <div class="section-num" style="background:var(--blue-light);color:var(--blue);">1</div>
+        <div class="section-title">재해 지역 · 지자체 정보</div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">재해 유형</label>
+          <select class="form-input" id="e-type">
+            ${['수해','산불','지진','호우','태풍','기타'].map(t=>`<option ${c.type===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">재해 발생 시·도</label>
+          <select class="form-input" id="e-sido">
+            ${['경상북도','경상남도','전라북도','전라남도','충청북도','충청남도','강원도','경기도','제주특별자치도','기타'].map(t=>`<option ${c.region===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">시·군·구</label>
+          <input class="form-input" type="text" id="e-sigungu" value="${c.sigungu.replace(c.region+' ','').replace(c.region,'').trim()}"></div>
+        <div class="form-group"><label class="form-label">수령 담당자</label>
+          <input class="form-input" type="text" id="e-contact" value="${c.toDept}"></div>
+        <div class="form-group"><label class="form-label">수령 장소</label>
+          <input class="form-input" type="text" id="e-recv" value="${c.to}"></div>
+        <div class="form-group"><label class="form-label">진행 상태</label>
+          <select class="form-input" id="e-status">
+            ${['preparing','transit','arrived','done'].map(s=>`<option value="${s}" ${c.status===s?'selected':''}>${STATUS_LABEL[s]}</option>`).join('')}
+          </select></div>
+      </div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-head">
+        <div class="section-num" style="background:var(--green-light);color:var(--green);">2</div>
+        <div class="section-title">물품 종류 · 수량</div>
+      </div>
+      ${catsHtml}
+    </div>
+
+    <div class="section-block">
+      <div class="section-head">
+        <div class="section-num" style="background:var(--amber-light);color:var(--amber);">3</div>
+        <div class="section-title">출발지 · 출발 일시</div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">출발지</label>
+          <select class="form-input" id="e-from">
+            ${['서울시청 본관','마포 물류창고','서울 동부창고','기타'].map(t=>`<option ${fromVal===t?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">출발지 직접 입력</label>
+          <input class="form-input" type="text" id="e-from-custom" value="${fromCustomVal}" placeholder="'기타' 선택 시 입력"></div>
+        <div class="form-group"><label class="form-label">출발 예정 일시</label>
+          <input class="form-input" type="datetime-local" id="e-depart" value="${departVal}"></div>
+        <div class="form-group"><label class="form-label">도착 예정 일시</label>
+          <input class="form-input" type="datetime-local" id="e-arrive" value="${arriveVal}"></div>
+      </div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-head">
+        <div class="section-num" style="background:#FBEAF0;color:#72243E;">4</div>
+        <div class="section-title">참여 기관</div>
+      </div>
+      <div class="org-grid">${orgsHtml}</div>
+    </div>
+
+    <div class="section-block">
+      <div class="section-head">
+        <div class="section-num" style="background:var(--gray-light);color:var(--gray);">5</div>
+        <div class="section-title">차량 · 운송 정보</div>
+      </div>
+      <div class="form-grid-3">
+        <div class="form-group"><label class="form-label">차량 종류</label>
+          <select class="form-input" id="e-vehicle-type">
+            ${['1톤 트럭','3.5톤 트럭','5톤 트럭','11톤 트럭','냉동차','기타'].map(t=>`<option ${c.vehicle.includes(t)?'selected':''}>${t}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">차량 대수</label>
+          <input class="form-input" type="number" id="e-vehicle-count" value="${c.vehicle.match(/\d+/)?c.vehicle.match(/\d+/)[0]:1}" min="1"></div>
+        <div class="form-group"><label class="form-label">비고</label>
+          <input class="form-input" type="text" id="e-note" value="${c.note||''}"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+      <button class="btn" onclick="cancelEdit()">취소</button>
+      <button class="btn btn-primary" onclick="saveEdit('${caseId}')">저장</button>
+    </div>`;
+}
+
+// 편집용 헬퍼
+function toggleEditCat(catId) {
+  const b=document.getElementById('ecbody-'+catId);
+  const a=document.getElementById('ecarrow-'+catId);
+  if(b){b.classList.toggle('open',!b.classList.contains('open'));a.classList.toggle('open',!a.classList.contains('open'));}
+}
+function addEditRow(catId) {
+  window._editItemState[catId].push({id:Date.now(), sub:'', customSub:'', qty:'', unit:''});
+  renderEditForm(window._editCaseId);
+}
+function delEditRow(catId, id) {
+  if(window._editItemState[catId].length===1) window._editItemState[catId]=[{id:Date.now(),sub:'',customSub:'',qty:'',unit:''}];
+  else window._editItemState[catId]=window._editItemState[catId].filter(r=>r.id!==id);
+  renderEditForm(window._editCaseId);
+}
+function onEditSubChange(catId,id,val) {
+  const r=window._editItemState[catId].find(r=>r.id===id);
+  if(r){r.sub=val;r.customSub='';} renderEditForm(window._editCaseId);
+}
+function onEditCustomChange(catId,id,val) { const r=window._editItemState[catId].find(r=>r.id===id); if(r) r.customSub=val; }
+function onEditQtyChange(catId,id,val) { const r=window._editItemState[catId].find(r=>r.id===id); if(r) r.qty=val; }
+function onEditUnitChange(catId,id,val) { const r=window._editItemState[catId].find(r=>r.id===id); if(r) r.unit=val; }
+function toggleEditOrg(id) {
+  window._editSelectedOrgs.has(id)?window._editSelectedOrgs.delete(id):window._editSelectedOrgs.add(id);
+  renderEditForm(window._editCaseId);
+}
+
+function saveEdit(caseId) {
+  const c = DB.cases.find(c=>c.id===caseId);
+  if(!c) return;
+
+  const sido = document.getElementById('e-sido').value;
+  const sigungu = document.getElementById('e-sigungu').value.trim();
+  const type = document.getElementById('e-type').value;
+  const from = document.getElementById('e-from').value;
+  const fromCustom = document.getElementById('e-from-custom').value.trim();
+
+  // 물품 재구성 (수량 변경 이력 유지)
+  const newItems = [];
+  CATS.forEach(cat => {
+    const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
+    window._editItemState[cat.id].filter(r=>(r.sub||r.customSub)&&r.qty).forEach(r=>{
+      const name = r.sub==='직접 입력'?r.customSub:r.sub;
+      const qty = parseInt(r.qty)||0;
+      // 기존 아이템이면 이력 유지, 새 아이템이면 새로 생성
+      const orig = r.origId ? c.items.find(it=>it.id===r.origId) : null;
+      if(orig) {
+        const prevQty = currentQty(orig);
+        if(qty !== prevQty) {
+          orig.history.push({qty, date:nowStr(), who:c.registrant, reason:'수정으로 인한 수량 변경', type:'change', prev:prevQty});
+        }
+        orig.name = name;
+        orig.history[orig.history.length-1].unit = r.unit;
+        newItems.push(orig);
+      } else {
+        newItems.push({
+          id:iuid(), cat:catLabel, name, unit:r.unit||'개',
+          history:[{qty, date:nowStr(), who:c.registrant, reason:'수정 등록', type:'initial'}],
+          stepIdx:0, times:[null,null,null,null]
+        });
+      }
+    });
+  });
+
+  c.region = sido;
+  c.sigungu = `${sido} ${sigungu}`;
+  c.type = type;
+  c.from = from==='기타'?(fromCustom||from):from;
+  c.to = document.getElementById('e-recv').value.trim();
+  c.toDept = document.getElementById('e-contact').value.trim();
+  c.depart = document.getElementById('e-depart').value;
+  c.arrive = document.getElementById('e-arrive').value;
+  c.status = document.getElementById('e-status').value;
+  c.vehicle = `${document.getElementById('e-vehicle-type').value} ${document.getElementById('e-vehicle-count').value}대`;
+  c.note = document.getElementById('e-note').value.trim();
+  c.orgs = ORGS.filter(o=>window._editSelectedOrgs.has(o.id)).map(o=>({id:o.id,name:o.name,role:o.role}));
+  c.items = newItems;
+
+  saveSingleCase(c);
+  window._editItemState = null;
+  window._editCaseId = null;
+  editingCaseId = null;
+  renderItems();
+  showToast('저장됐어요!');
 }
 
 function toggleHist(itemId) {
@@ -1383,13 +1692,15 @@ function submitRegForm() {
       });
     });
   });
+  const orgs = ORGS.filter(o => regSelectedOrgs.has(o.id)).map(o => ({id:o.id, name:o.name, role:o.role}));
   const newCase = {
     id:uid(), region:sido, sigungu:`${sido} ${sigungu}`, type,
     from:from==='기타'?(fromCustom||from):from,
     to:recv, toDept:`${cName} (${cDept}) · ${cTel}`,
     depart, arrive, status:'preparing', vehicle:`${vType} ${vCount}대`,
     registrant:regName, regDate:nowStr(), items, receipt:null,
-    contactName:cName, contactDept:cDept, contactTel:cTel, recvPlace:recv
+    contactName:cName, contactDept:cDept, contactTel:cTel, recvPlace:recv,
+    orgs: orgs
   };
   DB.cases.push(newCase);
   saveSingleCase(newCase);
@@ -1435,22 +1746,89 @@ function switchReportTab(tab, btn) {
   else renderReportReceipt();
 }
 function renderReportRegion() {
-  const cols=['구호물품','간식류','밥차(간식차)','음료류','진화물품'];
+  // 대분류 → 열 매핑
+  const COL_MAP = {
+    '진화장비': '진화물품',
+    '구호물품': '구호물품',
+    '식사·간식': '간식류',
+    '음료류':   '음료류',
+    '가전·시설': '기타시설',
+  };
+  const COLS = ['구호물품','간식류','음료류','진화물품','기타시설'];
+
+  // 지역별 집계
+  const rows = DB.cases.map((c, i) => {
+    const colTotals = {};
+    COLS.forEach(col => colTotals[col] = 0);
+    c.items.forEach(it => {
+      const col = COL_MAP[it.cat];
+      if (col) colTotals[col] += currentQty(it);
+    });
+    const total = c.items.reduce((s,it)=>s+currentQty(it),0);
+    return { idx: i+1, name: `${c.sigungu} (${c.type})`, total, cols: colTotals };
+  });
+
+  // 합계행
+  const sumCols = {};
+  COLS.forEach(col => sumCols[col] = rows.reduce((s,r)=>s+r.cols[col],0));
+  const grandTotal = rows.reduce((s,r)=>s+r.total,0);
+
   document.getElementById('report-region').innerHTML=`<div class="card"><div class="card-body">
     <div class="tbl-wrap"><table>
-      <thead><tr><th style="width:28px;">연번</th><th class="left">지역구분</th><th>총 합계</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <thead><tr>
+        <th style="width:28px;">연번</th>
+        <th class="left">지역구분</th>
+        <th>총 합계</th>
+        ${COLS.map(c=>`<th>${c}</th>`).join('')}
+      </tr></thead>
       <tbody>
-      <tr class="sum-row"><td></td><td class="left">합 계</td><td class="sum">${DB.cases.reduce((s,c)=>s+c.items.reduce((s2,it)=>s2+currentQty(it),0),0).toLocaleString()}</td>${cols.map(()=>'<td class="sum">-</td>').join('')}</tr>
-      ${DB.cases.map((c,i)=>{
-        const total=c.items.reduce((s,it)=>s+currentQty(it),0);
-        return `<tr><td>${i+1}</td><td class="left">${c.sigungu} (${c.type})</td><td class="sum">${total.toLocaleString()}</td>${cols.map(()=>'<td>-</td>').join('')}</tr>`;
-      }).join('')}
+      <tr class="sum-row">
+        <td></td><td class="left">합 계</td>
+        <td class="sum">${grandTotal.toLocaleString()}</td>
+        ${COLS.map(col=>`<td class="sum">${sumCols[col]>0?sumCols[col].toLocaleString():'-'}</td>`).join('')}
+      </tr>
+      ${rows.map(r=>`<tr>
+        <td>${r.idx}</td>
+        <td class="left">${r.name}</td>
+        <td class="sum">${r.total.toLocaleString()}</td>
+        ${COLS.map(col=>`<td>${r.cols[col]>0?r.cols[col].toLocaleString():'-'}</td>`).join('')}
+      </tr>`).join('')}
       </tbody>
     </table></div>
   </div></div>`;
 }
 function renderReportOrg() {
-  document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;">기관별 입력 데이터가 쌓이면 여기에 표시돼요.</p></div></div>`;
+  const orgMap = {};
+  DB.cases.forEach(c => {
+    if (!c.orgs || c.orgs.length === 0) return;
+    c.orgs.forEach(o => {
+      if (!orgMap[o.name]) orgMap[o.name] = { name: o.name, role: o.role, cases: [], totalItems: 0 };
+      orgMap[o.name].cases.push(c);
+      orgMap[o.name].totalItems += c.items.reduce((s, it) => s + currentQty(it), 0);
+    });
+  });
+  const orgs = Object.values(orgMap);
+  if (orgs.length === 0) {
+    document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">신규 지원 등록 시 참여 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
+    return;
+  }
+  const rows = orgs.map((o,i) => `<tr>
+    <td>${i+1}</td>
+    <td class="left" style="font-weight:600;">${o.name}</td>
+    <td style="color:var(--text-sub);font-size:12px;">${o.role}</td>
+    <td>${o.cases.length}건</td>
+    <td class="sum">${o.totalItems.toLocaleString()}</td>
+    <td class="left" style="font-size:12px;color:var(--text-sub);">${o.cases.map(c=>c.sigungu+' '+c.type).join(', ')}</td>
+  </tr>`).join('');
+  document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body">
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th style="width:28px;">연번</th><th class="left">기관명</th><th class="left">역할</th>
+        <th>참여 건수</th><th>총 물품(점)</th><th class="left">참여 지원 건</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div></div>`;
 }
 function renderReportReceipt() {
   const done=DB.cases.filter(c=>c.status==='done');
