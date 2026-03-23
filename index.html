@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>구호물품 지원 현황 | 서울시 대외협력과</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue: #185FA5; --blue-light: #E6F1FB; --blue-mid: #B5D4F4;
+  --green: #3B6D11; --green-light: #EAF3DE; --green-mid: #9FE1CB;
+  --amber: #633806; --amber-light: #FAEEDA; --amber-mid: #FAC775;
+  --red: #A32D2D; --red-light: #FCEBEB; --red-mid: #F09595;
+  --gray: #444441; --gray-light: #F1EFE8; --gray-mid: #D3D1C7;
+  --text: #1a1a1a; --text-sub: #666; --text-hint: #999;
+  --bg: #F7F8FA; --bg-card: #fff; --border: rgba(0,0,0,0.1);
+  --radius: 10px; --radius-sm: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  --font: 'Noto Sans KR', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+button { font-family: var(--font); cursor: pointer; }
+
+/* ── 레이아웃 */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: #1a2744; flex-shrink: 0; display: flex; flex-direction: column; position: fixed; top:0; left:0; height:100vh; z-index:100; }
+.sidebar-logo { padding: 20px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.sidebar-logo-title { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.4; }
+.sidebar-logo-sub { font-size: 11px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 18px; font-size: 13px; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.nav-item.active { background: rgba(24,95,165,0.35); color: #fff; border-left-color: var(--blue-mid); }
+.nav-icon { width: 18px; text-align: center; font-size: 15px; flex-shrink: 0; }
+.sidebar-bottom { padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 11px; color: rgba(255,255,255,0.3); }
+
+.main { margin-left: 220px; flex: 1; padding: 24px; min-height: 100vh; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── 공통 컴포넌트 */
+.page-header { margin-bottom: 20px; }
+.page-title { font-size: 20px; font-weight: 700; color: var(--text); }
+.page-sub { font-size: 13px; color: var(--text-sub); margin-top: 3px; }
+
+.card { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.card-body { padding: 16px 20px; }
+
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.metric { background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; }
+.metric-label { font-size: 11px; color: var(--text-sub); margin-bottom: 6px; }
+.metric-value { font-size: 24px; font-weight: 700; color: var(--text); }
+.metric-sub { font-size: 11px; color: var(--text-hint); margin-top: 2px; }
+.metric.accent { border-top: 3px solid var(--blue); }
+
+.btn { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); cursor: pointer; font-family: var(--font); transition: all 0.12s; }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover { background: #0C447C; }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover { background: #27500A; }
+.btn-danger { color: var(--red); border-color: var(--red-mid); }
+.btn-danger:hover { background: var(--red-light); }
+.btn-sm { font-size: 11px; padding: 4px 10px; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 9px; border-radius: 99px; font-weight: 500; }
+.badge-transit { background: var(--amber-light); color: var(--amber); }
+.badge-preparing { background: var(--gray-light); color: var(--gray); }
+.badge-done { background: var(--green-light); color: var(--green); }
+.badge-arrived { background: var(--blue-light); color: var(--blue); }
+.badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.form-label { font-size: 12px; font-weight: 500; color: var(--text-sub); }
+.req { color: var(--red); }
+.form-input { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); font-family: var(--font); width: 100%; }
+.form-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(24,95,165,0.1); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.form-full { grid-column: 1/-1; }
+
+.section-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 12px; }
+.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.section-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.section-title { font-size: 14px; font-weight: 700; }
+
+/* ── 이송 카드 */
+.case-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; box-shadow: var(--shadow); }
+.case-hero { display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.loc { flex: 1; }
+.loc-label { font-size: 10px; color: var(--text-hint); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.loc-name { font-size: 15px; font-weight: 700; }
+.loc-dept { font-size: 11px; color: var(--text-sub); margin-top: 1px; }
+.loc.right { text-align: right; }
+.arrow { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 16px; flex-shrink: 0; }
+.arrow-line { display: flex; align-items: center; }
+.arrow-shaft { height: 2px; width: 48px; background: var(--blue); }
+.arrow-head { width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid var(--blue); }
+.arrow-date { font-size: 11px; color: var(--blue); font-weight: 500; }
+.case-body { padding: 12px 20px; }
+.goods-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.gtag { font-size: 11px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text-sub); }
+.gtag-main { background: var(--blue-light); color: var(--blue); border-color: var(--blue-mid); font-weight: 500; }
+.case-footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--bg); border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+
+/* ── 테이블 */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: var(--bg); color: var(--text-sub); font-weight: 600; padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th.left { text-align: left; }
+td { padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.05); text-align: center; color: var(--text); }
+td.left { text-align: left; color: var(--text-sub); }
+td.sum { font-weight: 700; background: var(--bg); }
+tr:last-child td { border-bottom: none; }
+tr.sum-row td { font-weight: 700; background: var(--bg); border-top: 1px solid var(--border); }
+
+/* ── 탭 */
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tab { font-size: 13px; padding: 8px 18px; color: var(--text-sub); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none; border-left: none; border-right: none; font-family: var(--font); }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+
+/* ── 물품 이력 */
+.item-block { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 6px; }
+.item-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--bg-card); cursor: pointer; }
+.item-row:hover { background: var(--bg); }
+.cat-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px; flex-shrink: 0; }
+.item-name { font-size: 13px; font-weight: 500; flex: 1; }
+.item-qty { font-size: 13px; font-weight: 700; min-width: 70px; text-align: right; }
+
+/* ── 모달 */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-card); border-radius: var(--radius); width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--bg-card); }
+.modal-title { font-size: 15px; font-weight: 700; }
+.modal-close { background: none; border: none; font-size: 18px; color: var(--text-hint); cursor: pointer; line-height: 1; }
+.modal-body { padding: 20px; }
+.modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ── 등록자 바 */
+.registrant-bar { display: flex; align-items: center; gap: 14px; background: var(--blue-light); border: 1px solid var(--blue-mid); border-radius: var(--radius-sm); padding: 10px 16px; margin-bottom: 16px; flex-wrap: wrap; }
+.reg-label { font-size: 12px; font-weight: 700; color: var(--blue); white-space: nowrap; }
+.reg-divider { width: 1px; height: 18px; background: var(--blue-mid); }
+.reg-input { font-size: 13px; padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--blue-mid); background: #fff; color: var(--text); font-family: var(--font); width: 140px; }
+.reg-time { font-size: 11px; color: var(--blue); margin-left: auto; }
+
+/* ── 요약 바 */
+.summary-bar { background: var(--bg); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px; display: none; }
+.summary-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.stag { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-sub); }
+.stag strong { color: var(--text); font-weight: 600; }
+
+/* ── 물품 대분류 */
+.cat-block { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 8px; }
+.cat-header { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--bg); cursor: pointer; user-select: none; }
+.cat-arrow { font-size: 10px; color: var(--text-hint); transition: transform 0.15s; margin-left: auto; }
+.cat-arrow.open { transform: rotate(180deg); }
+.cat-body { display: none; padding: 10px 14px; border-top: 1px solid var(--border); }
+.cat-body.open { display: block; }
+.col-labels { display: grid; grid-template-columns: 170px 1fr 76px 52px 26px; gap: 8px; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.col-label { font-size: 10px; color: var(--text-hint); }
+.item-input-row { display: grid; grid-template-columns: 170px 1fr 76px 52px 26px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.qty-inp { font-size: 12px; padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text); text-align: right; width: 100%; font-family: var(--font); }
+.qty-inp:focus { outline: none; border-color: var(--blue); }
+.unit-sel { font-size: 11px; padding: 6px 4px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-sub); width: 100%; font-family: var(--font); }
+.del-btn { width: 24px; height: 24px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; color: var(--text-hint); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.del-btn:hover { background: var(--red-light); color: var(--red); border-color: var(--red-mid); }
+.add-sub-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px dashed var(--border); background: transparent; color: var(--text-hint); cursor: pointer; margin-top: 6px; font-family: var(--font); }
+.add-sub-btn:hover { background: var(--bg); color: var(--text); }
+
+/* ── 기관 선택 */
+.org-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+.org-toggle { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer; background: var(--bg); transition: all 0.1s; }
+.org-toggle.selected { border-color: var(--blue); background: var(--blue-light); }
+.org-check { width: 15px; height: 15px; border-radius: 3px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; color: transparent; }
+.org-toggle.selected .org-check { background: var(--blue); border-color: var(--blue); color: #fff; }
+.org-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.org-role { font-size: 10px; color: var(--text-hint); }
+
+/* ── 수령 확인 */
+.receipt-log { background: var(--green-light); border: 1px solid var(--green-mid); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 8px; }
+.receipt-log-title { font-size: 10px; font-weight: 700; color: var(--green); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+
+/* ── 히스토리 타임라인 */
+.tl-steps { display: flex; flex-direction: column; }
+.tl-step { display: flex; gap: 10px; }
+.tl-left { display: flex; flex-direction: column; align-items: center; width: 14px; flex-shrink: 0; padding-top: 2px; }
+.tl-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+.tl-dot-done { background: var(--green); border-color: var(--green); }
+.tl-dot-active { background: #EF9F27; border-color: #EF9F27; }
+.tl-dot-pending { background: var(--bg-card); border-color: var(--gray-mid); }
+.tl-line { width: 2px; flex: 1; min-height: 14px; margin: 2px 0; }
+.tl-line-done { background: var(--green); }
+.tl-line-pending { background: var(--gray-mid); }
+.tl-content { padding-bottom: 10px; flex: 1; }
+.tl-step:last-child .tl-content { padding-bottom: 0; }
+
+/* ── 토스트 */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1a2744; color: #fff; font-size: 13px; padding: 10px 20px; border-radius: var(--radius); z-index: 1000; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; font-family: var(--font); }
+.toast.show { opacity: 1; }
+
+/* ── Firebase 안내 */
+.setup-banner { background: #FFF8E1; border: 1px solid #FAC775; border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; }
+.setup-banner-title { font-size: 13px; font-weight: 700; color: #633806; margin-bottom: 4px; }
+.setup-banner-text { font-size: 12px; color: #856A3A; line-height: 1.6; }
+.setup-banner code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+@media (max-width: 768px) {
+  .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; }
+  .main { margin-left: 0; padding: 16px; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ── 사이드바 -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-title">구호물품 지원 현황</div>
+      <div class="sidebar-logo-sub">서울시 대외협력과</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span> 대시보드
+      </div>
+      <div class="nav-item" onclick="showPage('register')">
+        <span class="nav-icon">➕</span> 신규 지원 등록
+      </div>
+      <div class="nav-item" onclick="showPage('shipment')">
+        <span class="nav-icon">🚛</span> 이송 현황
+      </div>
+      <div class="nav-item" onclick="showPage('items')">
+        <span class="nav-icon">📦</span> 물품 수량 수정
+      </div>
+      <div class="nav-item" onclick="showPage('receipt')">
+        <span class="nav-icon">✅</span> 수령 확인 처리
+      </div>
+      <div class="nav-item" onclick="showPage('report')">
+        <span class="nav-icon">📋</span> 결과보고서
+      </div>
+    </div>
+    <div class="sidebar-bottom">ver 1.0 · 2025</div>
+  </nav>
+
+  <!-- ── 메인 -->
+  <main class="main">
+
+    <!-- ══ 대시보드 -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">구호물품 지원 현황</div>
+        <div class="page-sub" id="dash-sub">서울시 대외협력과 · 실시간 현황</div>
+      </div>
+      <div id="firebase-banner" class="setup-banner" style="display:none;">
+        <div class="setup-banner-title">⚙️ Firebase 연결이 필요해요</div>
+        <div class="setup-banner-text">
+          현재 데모 데이터로 실행 중이에요. 실제 데이터를 저장하려면 아래 <strong>설정 안내</strong>를 따라 Firebase를 연결해주세요.<br>
+          파일 상단 <code>FIREBASE_CONFIG</code> 부분에 본인의 Firebase 프로젝트 설정을 입력하면 돼요.
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric accent">
+          <div class="metric-label">총 지원 건수</div>
+          <div class="metric-value" id="m-total">0</div>
+          <div class="metric-sub">전체</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">이송 중</div>
+          <div class="metric-value" id="m-transit">0</div>
+          <div class="metric-sub">수령 확인 대기</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">수령 완료</div>
+          <div class="metric-value" id="m-done">0</div>
+          <div class="metric-sub">건</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">준비 중</div>
+          <div class="metric-value" id="m-prep">0</div>
+          <div class="metric-sub">출발 전</div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchDashTab('list', this)">지원 건 목록</button>
+        <button class="tab" onclick="switchDashTab('region', this)">지역별 현황</button>
+        <button class="tab" onclick="switchDashTab('org', this)">기관별 현황</button>
+      </div>
+      <div id="dash-list"></div>
+      <div id="dash-region" style="display:none;"></div>
+      <div id="dash-org" style="display:none;"></div>
+    </div>
+
+    <!-- ══ 신규 등록 -->
+    <div class="page" id="page-register">
+      <div class="page-header">
+        <div class="page-title">구호물품 지원 신규 등록</div>
+        <div class="page-sub">필수 항목(<span style="color:var(--red)">*</span>)을 모두 입력 후 등록해주세요</div>
+      </div>
+
+      <div class="registrant-bar">
+        <span class="reg-label">서울시 대외협력과</span>
+        <div class="reg-divider"></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--blue);">담당자<span style="color:var(--red)">*</span></span>
+          <input class="reg-input" type="text" id="f-reg-name" placeholder="예) 홍길동" oninput="updateRegSummary()">
+        </div>
+        <span class="reg-time" id="reg-time"></span>
+      </div>
+
+      <div class="summary-bar" id="reg-summary-bar">
+        <div class="summary-tags" id="reg-summary-tags"></div>
+      </div>
+
+      <div id="reg-form-wrap">
+        <!-- 섹션 1 -->
+        <div class="section-block">
+          <div class="section-head">
+            <div class="section-num" style="background:var(--blue-light);color:var(--blue);">1</div>
+            <div class="section-title">재해 지역 · 지자체 정보</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">재해 유형<span class="req">*</span></label>
+              <select class="form-input" id="f-type" oninput="updateRegSummary()">
+                <option value="">선택하세요</option>
+                <option>수해</option><option>산불</option><option>지진</option><option>호우</option><option>태풍</option><option>기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">재해 발생 시·도<span class="req">*</span></label>
+              <select class="form-input" id="f-sido" oninput="updateRegSummary()">
+                <option value="">선택하세요</option>
+                <option>경상북도</option><option>경상남도</option><option>전라북도</option><option>전라남도</option>
+                <option>충청북도</option><option>충청남도</option><option>강원도</option><option>경기도</option>
+                <option>제주특별자치도</option><option>기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">시·군·구<span class="req">*</span></label>
+              <input class="form-input" type="text" id="f-sigungu" placeholder="예) 태안군" oninput="updateRegSummary()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">재해 발생일<span class="req">*</span></label>
+              <input class="form-input" type="date" id="f-disaster-date">
+            </div>
+            <div class="form-group">
+              <label class="form-label">수령 담당자 이름<span class="req">*</span></label>
+              <input class="form-input" type="text" id="f-contact-name" placeholder="예) 김민준">
+            </div>
+            <div class="form-group">
+              <label class="form-label">수령 담당자 소속·직책<span class="req">*</span></label>
+              <input class="form-input" type="text" id="f-contact-dept" placeholder="예) 태안군청 안전총괄과 주무관">
+            </div>
+            <div class="form-group">
+              <label class="form-label">수령 담당자 연락처<span class="req">*</span></label>
+              <input class="form-input" type="tel" id="f-contact-tel" placeholder="예) 010-1234-5678">
+            </div>
+            <div class="form-group">
+              <label class="form-label">수령 장소<span class="req">*</span></label>
+              <input class="form-input" type="text" id="f-recv-place" placeholder="예) 태안군청 앞마당">
+            </div>
+          </div>
+        </div>
+
+        <!-- 섹션 2: 물품 -->
+        <div class="section-block">
+          <div class="section-head">
+            <div class="section-num" style="background:var(--green-light);color:var(--green);">2</div>
+            <div class="section-title">물품 종류 · 수량</div>
+          </div>
+          <div id="reg-cats-wrap"></div>
+        </div>
+
+        <!-- 섹션 3: 출발 -->
+        <div class="section-block">
+          <div class="section-head">
+            <div class="section-num" style="background:var(--amber-light);color:var(--amber);">3</div>
+            <div class="section-title">출발지 · 출발 일시</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">출발지<span class="req">*</span></label>
+              <select class="form-input" id="f-from" oninput="updateRegSummary()">
+                <option value="">선택하세요</option>
+                <option>서울시청 본관</option><option>마포 물류창고</option><option>서울 동부창고</option><option>기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">출발지 직접 입력</label>
+              <input class="form-input" type="text" id="f-from-custom" placeholder="'기타' 선택 시 입력">
+            </div>
+            <div class="form-group">
+              <label class="form-label">출발 예정 일시<span class="req">*</span></label>
+              <input class="form-input" type="datetime-local" id="f-depart" oninput="updateRegSummary()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">도착 예정 일시</label>
+              <input class="form-input" type="datetime-local" id="f-arrive">
+            </div>
+          </div>
+        </div>
+
+        <!-- 섹션 4: 기관 -->
+        <div class="section-block">
+          <div class="section-head">
+            <div class="section-num" style="background:#FBEAF0;color:#72243E;">4</div>
+            <div class="section-title">참여 기관 선택</div>
+          </div>
+          <div class="org-grid" id="reg-org-grid"></div>
+        </div>
+
+        <!-- 섹션 5: 차량 -->
+        <div class="section-block">
+          <div class="section-head">
+            <div class="section-num" style="background:var(--gray-light);color:var(--gray);">5</div>
+            <div class="section-title">차량 · 운송 정보</div>
+          </div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label">차량 종류<span class="req">*</span></label>
+              <select class="form-input" id="f-vehicle-type">
+                <option value="">선택하세요</option>
+                <option>1톤 트럭</option><option>3.5톤 트럭</option><option>5톤 트럭</option><option>11톤 트럭</option><option>냉동차</option><option>기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">차량 대수<span class="req">*</span></label>
+              <input class="form-input" type="number" id="f-vehicle-count" min="1" placeholder="예) 2">
+            </div>
+            <div class="form-group">
+              <label class="form-label">운전기사 연락처</label>
+              <input class="form-input" type="tel" id="f-driver-tel" placeholder="예) 010-9876-5432">
+            </div>
+            <div class="form-group form-full">
+              <label class="form-label">비고 · 특이사항</label>
+              <textarea class="form-input" id="f-note" rows="2" placeholder="예) 냉장 보관 필요 물품 포함 등"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+          <button class="btn" onclick="resetRegForm()">초기화</button>
+          <button class="btn btn-primary" onclick="submitRegForm()">지원 건 등록</button>
+        </div>
+      </div>
+
+      <div id="reg-success" style="display:none;" class="card">
+        <div class="card-body" style="text-align:center;padding:2rem;">
+          <div style="font-size:40px;margin-bottom:12px;">✅</div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;" id="reg-success-title"></div>
+          <div style="font-size:13px;color:var(--text-sub);margin-bottom:20px;">이송 현황에 반영됐어요.</div>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <button class="btn" onclick="goRegBack()">추가 건 등록</button>
+            <button class="btn btn-primary" onclick="showPage('shipment')">이송 현황 보기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 이송 현황 -->
+    <div class="page" id="page-shipment">
+      <div class="page-header">
+        <div class="page-title">이송 현황</div>
+        <div class="page-sub">물품별 단계 및 실제 시각을 기록할 수 있어요</div>
+      </div>
+      <div id="shipment-list"></div>
+    </div>
+
+    <!-- ══ 물품 수량 수정 -->
+    <div class="page" id="page-items">
+      <div class="page-header">
+        <div class="page-title">물품 수량 수정 · 변경 이력</div>
+        <div class="page-sub">수량 변경 시 이력이 자동으로 기록돼요</div>
+      </div>
+      <div id="items-list"></div>
+    </div>
+
+    <!-- ══ 수령 확인 처리 -->
+    <div class="page" id="page-receipt">
+      <div class="page-header">
+        <div class="page-title">수령 완료 확인 처리</div>
+        <div class="page-sub">이송 중인 건의 수령 확인을 처리할 수 있어요</div>
+      </div>
+      <div id="receipt-list"></div>
+    </div>
+
+    <!-- ══ 결과보고서 -->
+    <div class="page" id="page-report">
+      <div class="page-header">
+        <div class="page-title">결과보고서</div>
+        <div class="page-sub">지역별·기관별 지원현황 및 엑셀 내보내기</div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchReportTab('region', this)">지역별 현황</button>
+        <button class="tab" onclick="switchReportTab('org2', this)">기관별 현황</button>
+        <button class="tab" onclick="switchReportTab('receipt2', this)">수령 확인 내역</button>
+      </div>
+      <div id="report-region"></div>
+      <div id="report-org2" style="display:none;"></div>
+      <div id="report-receipt2" style="display:none;"></div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="exportExcel()">📥 엑셀 내보내기</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── 수령 확인 모달 -->
+<div class="modal-overlay" id="receipt-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">수령 완료 확인 처리</span>
+      <button class="modal-close" onclick="closeReceiptModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:13px;" id="receipt-modal-info"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">확인 일시 <span class="req">*</span></label>
+          <input class="form-input" type="datetime-local" id="rm-datetime">
+        </div>
+        <div class="form-group">
+          <label class="form-label">확인자 이름 <span class="req">*</span></label>
+          <input class="form-input" type="text" id="rm-name" placeholder="예) 홍길동">
+        </div>
+        <div class="form-group">
+          <label class="form-label">확인자 소속 <span class="req">*</span></label>
+          <input class="form-input" type="text" id="rm-dept" value="대외협력과">
+        </div>
+        <div class="form-group">
+          <label class="form-label">실제 수령 장소</label>
+          <input class="form-input" type="text" id="rm-place">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">특이사항·메모</label>
+        <textarea class="form-input" id="rm-memo" rows="2" placeholder="예) 담요 5장 파손 등"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeReceiptModal()">취소</button>
+      <button class="btn btn-success" onclick="submitReceipt()">수령 완료 확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 수량 변경 모달 -->
+<div class="modal-overlay" id="qty-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">수량 변경</span>
+      <button class="modal-close" onclick="closeQtyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:13px;" id="qty-modal-info"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">변경 수량 <span class="req">*</span></label>
+          <input class="form-input" type="number" id="qm-qty" min="0" placeholder="예) 500">
+        </div>
+        <div class="form-group">
+          <label class="form-label">변경 담당자 <span class="req">*</span></label>
+          <input class="form-input" type="text" id="qm-who" placeholder="예) 홍길동">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">변경 사유 <span class="req">*</span></label>
+        <input class="form-input" type="text" id="qm-reason" placeholder="예) 재고 부족으로 500개 감축">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeQtyModal()">취소</button>
+      <button class="btn btn-primary" onclick="submitQtyChange()">변경 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 삭제 확인 모달 -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <span class="modal-title">지원 건 삭제</span>
+      <button class="modal-close" onclick="document.getElementById('del-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-sub);line-height:1.7;">아래 지원 건을 삭제할까요? 삭제 후에는 복구할 수 없어요.</p>
+      <p style="font-size:14px;font-weight:700;margin-top:10px;" id="del-target-name"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="document.getElementById('del-modal').classList.remove('open')">취소</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════
+// ⚙️ FIREBASE 설정
+// Firebase 콘솔(https://console.firebase.google.com)에서
+// 프로젝트 생성 후 아래 값을 교체하세요.
+// ════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Firebase 연결 여부 (위 설정을 채우면 true로 바꾸세요)
+const USE_FIREBASE = false;
+
+// ════════════════════════════════════════
+// 로컬 데이터 스토어 (Firebase 미연결 시)
+// ════════════════════════════════════════
+let DB = {
+  cases: [
+    {
+      id: 'c1', region: '경상북도', sigungu: '경북 전역', type: '산불',
+      from: '서울시청 본관', to: '경북도청', toDept: '재난안전실 · 박철수 주무관',
+      depart: '2025-03-22T08:00', arrive: '2025-03-22T16:30',
+      status: 'done', vehicle: '5톤 트럭 3대', registrant: '김철수', regDate: nowStr(),
+      items: [
+        { id: 'i1', cat: '진화장비', name: '방화복', unit: '벌',
+          history: [{qty:300, date:nowStr(), who:'김철수', reason:'최초 등록', type:'initial'}],
+          stepIdx: 3, times: ['2025.03.22 07:50','2025.03.22 08:00','2025.03.22 16:20','2025.03.22 17:00'] },
+        { id: 'i2', cat: '구호물품', name: '텐트(셸터)', unit: '개',
+          history: [{qty:120, date:nowStr(), who:'김철수', reason:'최초 등록', type:'initial'}],
+          stepIdx: 3, times: ['2025.03.22 07:50','2025.03.22 08:00','2025.03.22 16:20','2025.03.22 17:05'] },
+        { id: 'i3', cat: '음료류', name: '생수 500mL', unit: '박스',
+          history: [{qty:600, date:nowStr(), who:'김철수', reason:'최초 등록', type:'initial'}],
+          stepIdx: 3, times: ['2025.03.22 07:50','2025.03.22 08:00','2025.03.22 16:20','2025.03.22 17:00'] },
+      ],
+      receipt: { datetime: '2025.03.22 17:10', name: '박지훈', dept: '대외협력과', place: '경북도청 앞마당', memo: '' }
+    },
+    {
+      id: 'c2', region: '충청남도', sigungu: '충남 태안군', type: '수해',
+      from: '마포 물류창고', to: '충남 태안군청', toDept: '안전총괄과 · 김민준 주무관',
+      depart: '2025-07-14T09:00', arrive: '2025-07-14T15:00',
+      status: 'transit', vehicle: '5톤 트럭 2대', registrant: '이영희', regDate: nowStr(),
+      items: [
+        { id: 'i4', cat: '식사·간식', name: '맥도날드 버거', unit: '개',
+          history: [
+            {qty:1000, date:'2025.07.13 09:00', who:'이영희', reason:'최초 등록', type:'initial'},
+            {qty:500,  date:'2025.07.13 14:30', who:'이영희', reason:'재고 부족으로 500개 감축', type:'change', prev:1000}
+          ],
+          stepIdx: 1, times: ['2025.07.14 08:30','2025.07.14 09:05',null,null] },
+        { id: 'i5', cat: '구호물품', name: '담요', unit: '장',
+          history: [{qty:200, date:nowStr(), who:'이영희', reason:'최초 등록', type:'initial'}],
+          stepIdx: 2, times: ['2025.07.14 08:00','2025.07.14 09:00','2025.07.14 14:50',null] },
+        { id: 'i6', cat: '음료류', name: '생수 500mL', unit: '박스',
+          history: [{qty:500, date:nowStr(), who:'이영희', reason:'최초 등록', type:'initial'}],
+          stepIdx: 1, times: ['2025.07.14 08:30','2025.07.14 09:10',null,null] },
+      ],
+      receipt: null
+    }
+  ]
+};
+
+function saveDB() {
+  try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
+}
+function loadDB() {
+  try {
+    const s = localStorage.getItem('relief_db');
+    if (s) DB = JSON.parse(s);
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// 유틸
+// ════════════════════════════════════════
+function nowStr() {
+  const n = new Date(), p = x => String(x).padStart(2,'0');
+  return `${n.getFullYear()}.${p(n.getMonth()+1)}.${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`;
+}
+function uid() { return 'c' + Date.now() + Math.random().toString(36).slice(2,6); }
+function iuid() { return 'i' + Date.now() + Math.random().toString(36).slice(2,6); }
+function currentQty(item) { return item.history[item.history.length-1].qty; }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function fmt(v) { return typeof v === 'number' ? v.toLocaleString() : (v || '-'); }
+
+const STEPS = ['준비 중','이송 중','현장 도착','수령 완료'];
+const STEP_STATUS = ['preparing','transit','arrived','done'];
+const CAT_STYLE = {
+  '진화장비':  {bg:'#FCE4D6',color:'#A32D2D'},
+  '구호물품':  {bg:'#DDEEFF',color:'#0C447C'},
+  '식사·간식': {bg:'#E2EFDA',color:'#27500A'},
+  '음료류':   {bg:'#FFF2CC',color:'#633806'},
+  '가전·시설': {bg:'#F2F2F2',color:'#444441'},
+};
+const STATUS_LABEL = {preparing:'준비 중', transit:'이송 중', arrived:'현장 도착', done:'수령 완료'};
+const STATUS_CLASS = {preparing:'badge-preparing', transit:'badge-transit', arrived:'badge-arrived', done:'badge-done'};
+const ORGS = [
+  {id:'redcross', name:'대한적십자사', role:'물품 지원'},
+  {id:'relief',   name:'재해구호협회',  role:'물품 지원'},
+  {id:'volunteer',name:'서울자원봉사센터',role:'인력 지원'},
+  {id:'welfare',  name:'복지실',        role:'물품 지원'},
+  {id:'food',     name:'외식업협회',    role:'식품 지원'},
+  {id:'citizen',  name:'시민협력과',    role:'인력 지원'},
+  {id:'safety',   name:'재난안전실',    role:'행정 지원'},
+  {id:'other',    name:'기타',          role:'직접 입력'},
+];
+
+// ════════════════════════════════════════
+// 네비게이션
+// ════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'"+id+"'")) n.classList.add('active');
+  });
+  renderPage(id);
+}
+
+function renderPage(id) {
+  if (id==='dashboard') renderDashboard();
+  else if (id==='shipment') renderShipment();
+  else if (id==='items') renderItems();
+  else if (id==='receipt') renderReceiptPage();
+  else if (id==='report') renderReport();
+  else if (id==='register') initRegForm();
+}
+
+// ════════════════════════════════════════
+// 대시보드
+// ════════════════════════════════════════
+function renderDashboard() {
+  const cases = DB.cases;
+  document.getElementById('m-total').textContent = cases.length;
+  document.getElementById('m-transit').textContent = cases.filter(c=>c.status==='transit').length;
+  document.getElementById('m-done').textContent = cases.filter(c=>c.status==='done').length;
+  document.getElementById('m-prep').textContent = cases.filter(c=>c.status==='preparing').length;
+  document.getElementById('dash-sub').textContent = `서울시 대외협력과 · 총 ${cases.length}건 등록됨`;
+  if (!USE_FIREBASE) document.getElementById('firebase-banner').style.display='block';
+  renderDashList();
+}
+
+function switchDashTab(tab, btn) {
+  document.querySelectorAll('#page-dashboard .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  ['list','region','org'].forEach(id => {
+    document.getElementById('dash-'+id).style.display = id===tab ? 'block' : 'none';
+  });
+  if (tab==='region') renderDashRegion();
+  else if (tab==='org') renderDashOrg();
+  else renderDashList();
+}
+
+function renderDashList() {
+  document.getElementById('dash-list').innerHTML = DB.cases.length === 0
+    ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>'
+    : DB.cases.map(c => caseCardHTML(c, true)).join('');
+}
+
+function caseCardHTML(c, showActions) {
+  const departFmt = c.depart ? c.depart.replace('T',' ').slice(0,16) : '-';
+  const mainItems = c.items.slice(0,2).map(it=>`<span class="gtag gtag-main">${it.name} ${currentQty(it).toLocaleString()}${it.unit}</span>`).join('');
+  const restItems = c.items.slice(2).map(it=>`<span class="gtag">${it.name} ${currentQty(it).toLocaleString()}${it.unit}</span>`).join('');
+  const actions = showActions ? `
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-sm" onclick="openQtyModalForCase('${c.id}')">수량 수정</button>
+      ${c.status!=='done' ? `<button class="btn btn-sm" style="color:var(--green);border-color:var(--green-mid);" onclick="openReceiptModal('${c.id}')">수령 확인</button>` : '<span class="badge badge-done"><span class="badge-dot"></span>수령 완료</span>'}
+      <button class="btn btn-sm btn-danger" onclick="openDeleteModal('${c.id}')">삭제</button>
+    </div>` : '';
+  return `<div class="case-card">
+    <div class="case-hero">
+      <div class="loc">
+        <div class="loc-label">발송지</div>
+        <div class="loc-name">${c.from}</div>
+        <div class="loc-dept">서울시 대외협력과</div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-line"><div class="arrow-shaft"></div><div class="arrow-head"></div></div>
+        <div class="arrow-date">${departFmt.slice(5,10)} 출발</div>
+      </div>
+      <div class="loc right">
+        <div class="loc-label">수령지</div>
+        <div class="loc-name">${c.to}</div>
+        <div class="loc-dept">${c.toDept}</div>
+      </div>
+    </div>
+    <div class="case-body">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+        <span style="font-size:13px;font-weight:600;">${c.sigungu} ${c.type}</span>
+        <span style="font-size:12px;color:var(--text-sub);">총 ${c.items.reduce((s,it)=>s+currentQty(it),0).toLocaleString()}점 · ${c.items.length}종</span>
+      </div>
+      <div class="goods-tags">${mainItems}${restItems}</div>
+    </div>
+    <div class="case-footer">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="badge ${STATUS_CLASS[c.status]}"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
+        <span style="font-size:11px;color:var(--text-hint);">${c.vehicle} · 등록: ${c.registrant}</span>
+      </div>
+      ${actions}
+    </div>
+  </div>`;
+}
+
+// ── 지역별
+function renderDashRegion() {
+  const cols = ['구호물품','간식류','밥차(간식차)','음료류','진화물품'];
+  document.getElementById('dash-region').innerHTML = `<div class="card"><div class="card-body">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th style="width:28px;">연번</th><th class="left">지역</th><th>총합계</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${DB.cases.map((c,i) => {
+        const total = c.items.reduce((s,it)=>s+currentQty(it),0);
+        return `<tr><td>${i+1}</td><td class="left">${c.sigungu} (${c.type})</td><td class="sum">${total.toLocaleString()}</td>${cols.map(()=>`<td>-</td>`).join('')}</tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div></div>`;
+}
+
+function renderDashOrg() {
+  document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body"><p style="color:var(--text-sub);font-size:13px;">기관별 물품 입력 데이터가 쌓이면 여기에 표시돼요.</p></div></div>`;
+}
+
+// ════════════════════════════════════════
+// 이송 현황
+// ════════════════════════════════════════
+const openTL = new Set();
+
+function renderShipment() {
+  document.getElementById('shipment-list').innerHTML = DB.cases.map(c => {
+    const groups = groupByCat(c.items);
+    const itemsHtml = groups.map(g => {
+      const cs = CAT_STYLE[g.cat] || {bg:'#F2F2F2',color:'#444'};
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${cs.bg};color:${cs.color};">${g.cat}</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+        ${g.items.map(item => {
+          const sc = STATUS_CLASS[STEP_STATUS[item.stepIdx]];
+          const sl = STEPS[item.stepIdx];
+          const isOpen = openTL.has(item.id);
+          return `<div class="item-block">
+            <div class="item-row" onclick="toggleTL('${item.id}')">
+              <span class="item-name">${item.name}</span>
+              <span class="item-qty">${currentQty(item).toLocaleString()} ${item.history[0].unit||''}</span>
+              <span class="badge ${sc}" style="margin-left:4px;"><span class="badge-dot"></span>${sl}</span>
+              <span class="cat-arrow ${isOpen?'open':''}" style="font-size:10px;color:var(--text-hint);margin-left:4px;">▾</span>
+            </div>
+            ${isOpen ? renderTLPanel(c.id, item) : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    return `<div class="case-card">
+      ${caseHeroHTML(c)}
+      <div class="case-body">
+        <div style="font-size:11px;font-weight:600;color:var(--text-hint);letter-spacing:0.05em;text-transform:uppercase;margin-bottom:10px;">물품별 이송 현황</div>
+        ${itemsHtml}
+      </div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>';
+}
+
+function caseHeroHTML(c) {
+  const d = c.depart ? c.depart.replace('T',' ').slice(5,10) : '-';
+  return `<div class="case-hero">
+    <div class="loc"><div class="loc-label">발송지</div><div class="loc-name">${c.from}</div><div class="loc-dept">서울시 대외협력과</div></div>
+    <div class="arrow"><div class="arrow-line"><div class="arrow-shaft"></div><div class="arrow-head"></div></div><div class="arrow-date">${d} 출발</div></div>
+    <div class="loc right"><div class="loc-label">수령지</div><div class="loc-name">${c.to}</div><div class="loc-dept">${c.toDept}</div></div>
+  </div>`;
+}
+
+function toggleTL(itemId) {
+  openTL.has(itemId) ? openTL.delete(itemId) : openTL.add(itemId);
+  renderShipment();
+}
+
+function renderTLPanel(caseId, item) {
+  const rows = STEPS.map((step, i) => {
+    const isDone = i < item.stepIdx, isActive = i === item.stepIdx, isPending = i > item.stepIdx;
+    const isLast = i === 3;
+    const dotClass = isDone ? 'tl-dot-done' : isActive ? 'tl-dot-active' : 'tl-dot-pending';
+    const t = item.times[i];
+    return `<div class="tl-step">
+      <div class="tl-left">
+        <div class="tl-dot ${dotClass}"></div>
+        ${!isLast ? `<div class="tl-line ${isDone?'tl-line-done':'tl-line-pending'}"></div>` : ''}
+      </div>
+      <div class="tl-content">
+        <div style="font-size:12px;font-weight:${isActive?'700':'500'};color:${isPending?'var(--text-hint)':'var(--text)'};">${step}</div>
+        <div style="font-size:11px;color:${t?'var(--text)':'var(--text-hint)'};margin-top:1px;">${t || '미기록'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const nextStep = item.stepIdx < 3 ? STEPS[item.stepIdx+1] : null;
+  return `<div style="background:var(--bg);border-top:1px solid var(--border);padding:10px 14px;">
+    <div class="tl-steps">${rows}</div>
+    ${nextStep ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+      <button class="btn btn-sm btn-primary" onclick="advanceStep('${caseId}','${item.id}',event)">→ ${nextStep}(으)로 진행</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function advanceStep(caseId, itemId, event) {
+  event.stopPropagation();
+  const c = DB.cases.find(c=>c.id===caseId);
+  const item = c.items.find(it=>it.id===itemId);
+  if (item.stepIdx >= 3) return;
+  item.stepIdx += 1;
+  item.times[item.stepIdx] = nowStr();
+  if (item.stepIdx === 3) c.status = 'done';
+  saveDB(); renderShipment(); showToast(`${item.name} → ${STEPS[item.stepIdx]}`);
+}
+
+function groupByCat(items) {
+  const order = ['진화장비','구호물품','식사·간식','음료류','가전·시설'];
+  const map = {};
+  items.forEach(it => { if(!map[it.cat]) map[it.cat]=[]; map[it.cat].push(it); });
+  return order.filter(k=>map[k]).map(k=>({cat:k, items:map[k]}));
+}
+
+// ════════════════════════════════════════
+// 물품 수량 수정
+// ════════════════════════════════════════
+let qtyModalTarget = null;
+const openHist = new Set();
+
+function renderItems() {
+  document.getElementById('items-list').innerHTML = DB.cases.map(c => {
+    const groups = groupByCat(c.items);
+    const itemsHtml = groups.map(g => {
+      const cs = CAT_STYLE[g.cat]||{bg:'#F2F2F2',color:'#444'};
+      return `<div style="margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${cs.bg};color:${cs.color};">${g.cat}</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+        ${g.items.map(item => {
+          const cur = currentQty(item);
+          const hc = item.history.length;
+          const isOpen = openHist.has(item.id);
+          return `<div class="item-block">
+            <div class="item-row" onclick="toggleHist('${item.id}')">
+              <span class="item-name">${item.name}</span>
+              <span class="item-qty">${cur.toLocaleString()} ${item.history[0].unit||''}</span>
+              <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue-mid);" onclick="openQtyModal('${c.id}','${item.id}',event)">수량 변경</button>
+              <button class="btn btn-sm" onclick="toggleHist('${item.id}')" style="margin-left:2px;">이력 ${hc}회 ${isOpen?'▴':'▾'}</button>
+            </div>
+            ${isOpen ? renderHistPanel(item) : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    return `<div class="case-card">
+      ${caseHeroHTML(c)}
+      <div class="case-body">${itemsHtml}</div>
+    </div>`;
+  }).join('') || '<div style="padding:2rem;text-align:center;color:var(--text-hint);">등록된 지원 건이 없어요</div>';
+}
+
+function toggleHist(itemId) {
+  openHist.has(itemId) ? openHist.delete(itemId) : openHist.add(itemId);
+  renderItems();
+}
+
+function renderHistPanel(item) {
+  const hist = item.history;
+  const rows = hist.map((h, i) => {
+    const isFirst = i===0, isLast = i===hist.length-1;
+    let qtyHtml = '';
+    if (isFirst) {
+      qtyHtml = `<span style="font-size:13px;font-weight:600;">${h.qty.toLocaleString()} ${item.history[0].unit||''}</span>
+        <span style="font-size:10px;background:var(--bg);border:1px solid var(--border);padding:1px 6px;border-radius:99px;margin-left:6px;">최초 등록</span>`;
+    } else {
+      const prev = h.prev !== undefined ? h.prev : hist[i-1].qty;
+      const diff = h.qty - prev;
+      qtyHtml = `<span style="font-size:12px;color:var(--text-hint);text-decoration:line-through;">${prev.toLocaleString()}</span>
+        <span style="font-size:11px;color:var(--text-hint);margin:0 4px;">→</span>
+        <span style="font-size:13px;font-weight:700;color:${diff>=0?'var(--green)':'var(--red)'};">${h.qty.toLocaleString()}</span>
+        <span style="font-size:11px;color:${diff>=0?'var(--green)':'var(--red)'};margin-left:3px;">(${diff>=0?'+':''}${diff.toLocaleString()})</span>
+        ${isLast?'<span style="font-size:10px;background:var(--green-light);color:var(--green);padding:1px 6px;border-radius:99px;margin-left:6px;">최신</span>':''}`;
+    }
+    return `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.04);">
+      <div style="display:flex;flex-direction:column;align-items:center;width:12px;padding-top:3px;flex-shrink:0;">
+        <div style="width:9px;height:9px;border-radius:50%;background:${isFirst?'var(--gray-mid)':isLast?'var(--green)':'#EF9F27'};flex-shrink:0;"></div>
+        ${!isLast?'<div style="width:1.5px;flex:1;background:var(--border);margin:2px 0;min-height:12px;"></div>':''}
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--text-hint);margin-bottom:2px;">${h.date} · ${h.who}</div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">${qtyHtml}</div>
+        ${h.reason?`<div style="font-size:11px;color:var(--text-hint);margin-top:2px;font-style:italic;">"${h.reason}"</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="background:var(--bg);border-top:1px solid var(--border);padding:10px 14px;">
+    <div style="font-size:10px;font-weight:700;color:var(--text-hint);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px;">변경 이력</div>
+    ${rows}
+  </div>`;
+}
+
+function openQtyModalForCase(caseId) { showPage('items'); }
+function openQtyModal(caseId, itemId, event) {
+  if (event) event.stopPropagation();
+  const c = DB.cases.find(c=>c.id===caseId);
+  const item = c.items.find(it=>it.id===itemId);
+  qtyModalTarget = {caseId, itemId};
+  const cur = currentQty(item);
+  document.getElementById('qty-modal-info').innerHTML = `<strong>${item.name}</strong> · 현재 수량: <strong>${cur.toLocaleString()} ${item.history[0].unit||''}</strong>`;
+  document.getElementById('qm-qty').value = '';
+  document.getElementById('qm-who').value = '';
+  document.getElementById('qm-reason').value = '';
+  document.getElementById('qty-modal').classList.add('open');
+}
+function closeQtyModal() { document.getElementById('qty-modal').classList.remove('open'); }
+function submitQtyChange() {
+  const qty = parseInt(document.getElementById('qm-qty').value);
+  const who = document.getElementById('qm-who').value.trim();
+  const reason = document.getElementById('qm-reason').value.trim();
+  if (!qty||qty<0) { alert('변경 수량을 입력해주세요.'); return; }
+  if (!who) { alert('변경 담당자 이름을 입력해주세요.'); return; }
+  if (!reason) { alert('변경 사유를 입력해주세요.'); return; }
+  const c = DB.cases.find(c=>c.id===qtyModalTarget.caseId);
+  const item = c.items.find(it=>it.id===qtyModalTarget.itemId);
+  const prev = currentQty(item);
+  if (qty===prev) { alert('현재 수량과 동일해요.'); return; }
+  item.history.push({qty, date:nowStr(), who, reason, type:'change', prev});
+  saveDB(); closeQtyModal(); renderItems();
+  showToast(`${item.name}: ${prev.toLocaleString()} → ${qty.toLocaleString()}`);
+}
+
+// ════════════════════════════════════════
+// 수령 확인
+// ════════════════════════════════════════
+let receiptModalCaseId = null;
+
+function renderReceiptPage() {
+  const transit = DB.cases.filter(c=>c.status==='transit'||c.status==='arrived');
+  const done = DB.cases.filter(c=>c.status==='done');
+  document.getElementById('receipt-list').innerHTML = `
+    <div style="font-size:12px;font-weight:600;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px;">수령 확인 대기 (${transit.length}건)</div>
+    ${transit.length===0?'<div style="padding:1.5rem;text-align:center;color:var(--text-hint);font-size:13px;background:var(--bg);border-radius:var(--radius);margin-bottom:16px;">이송 중인 건이 없어요</div>':transit.map(c=>`
+      <div class="case-card" style="margin-bottom:10px;">
+        ${caseHeroHTML(c)}
+        <div class="case-footer">
+          <span class="badge ${STATUS_CLASS[c.status]}"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
+          <button class="btn btn-success btn-sm" onclick="openReceiptModal('${c.id}')">수령 완료 확인</button>
+        </div>
+      </div>`).join('')}
+    <div style="font-size:12px;font-weight:600;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.04em;margin:16px 0 10px;">수령 완료 (${done.length}건)</div>
+    ${done.length===0?'<div style="padding:1.5rem;text-align:center;color:var(--text-hint);font-size:13px;background:var(--bg);border-radius:var(--radius);">완료된 건이 없어요</div>':done.map(c=>`
+      <div class="case-card" style="margin-bottom:10px;border-color:var(--green-mid);">
+        ${caseHeroHTML(c)}
+        <div class="case-body">
+          ${c.receipt ? `<div class="receipt-log">
+            <div class="receipt-log-title">수령 확인 완료</div>
+            <div style="font-size:12px;color:var(--text);display:flex;flex-wrap:wrap;gap:12px;">
+              <span>일시: <strong>${c.receipt.datetime}</strong></span>
+              <span>확인자: <strong>${c.receipt.name} (${c.receipt.dept})</strong></span>
+              <span>장소: <strong>${c.receipt.place}</strong></span>
+              ${c.receipt.memo?`<span>메모: <em>${c.receipt.memo}</em></span>`:''}
+            </div>
+          </div>` : ''}
+        </div>
+      </div>`).join('')}`;
+}
+
+function openReceiptModal(caseId) {
+  receiptModalCaseId = caseId;
+  const c = DB.cases.find(c=>c.id===caseId);
+  document.getElementById('receipt-modal-info').innerHTML = `<strong>${c.sigungu} ${c.type}</strong> · ${c.from} → ${c.to}`;
+  const now = new Date(), p = x => String(x).padStart(2,'0');
+  document.getElementById('rm-datetime').value = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}T${p(now.getHours())}:${p(now.getMinutes())}`;
+  document.getElementById('rm-name').value = '';
+  document.getElementById('rm-dept').value = '대외협력과';
+  document.getElementById('rm-place').value = c.to;
+  document.getElementById('rm-memo').value = '';
+  document.getElementById('receipt-modal').classList.add('open');
+}
+function closeReceiptModal() { document.getElementById('receipt-modal').classList.remove('open'); }
+function submitReceipt() {
+  const name = document.getElementById('rm-name').value.trim();
+  const dept = document.getElementById('rm-dept').value.trim();
+  const dt   = document.getElementById('rm-datetime').value;
+  if (!name||!dept||!dt) { alert('필수 항목을 모두 입력해주세요.'); return; }
+  const c = DB.cases.find(c=>c.id===receiptModalCaseId);
+  c.receipt = { datetime: dt.replace('T',' '), name, dept, place: document.getElementById('rm-place').value.trim()||c.to, memo: document.getElementById('rm-memo').value.trim() };
+  c.status = 'done';
+  c.items.forEach(it => { it.stepIdx = 3; it.times[3] = c.receipt.datetime; });
+  saveDB(); closeReceiptModal(); renderReceiptPage(); renderDashboard();
+  showToast('수령 완료 처리됐어요!');
+}
+
+// ════════════════════════════════════════
+// 삭제
+// ════════════════════════════════════════
+let deleteTargetId = null;
+function openDeleteModal(caseId) {
+  deleteTargetId = caseId;
+  const c = DB.cases.find(c=>c.id===caseId);
+  document.getElementById('del-target-name').textContent = `${c.sigungu} ${c.type} 구호 지원`;
+  document.getElementById('del-modal').classList.add('open');
+}
+function confirmDelete() {
+  DB.cases = DB.cases.filter(c=>c.id!==deleteTargetId);
+  saveDB();
+  document.getElementById('del-modal').classList.remove('open');
+  renderDashboard(); showToast('삭제됐어요.');
+}
+
+// ════════════════════════════════════════
+// 신규 등록
+// ════════════════════════════════════════
+const CATS = [
+  {id:'fire',  name:'진화장비 및 방역용품', color:'#FCEBEB', textColor:'#A32D2D',
+   subs:['방화복','방화장갑','방화헬멧','안전화','방역복','마스크(방역용)','소화기','직접 입력'], units:['개','벌','켤레','세트','박스']},
+  {id:'relief', name:'구호물품', color:'#DDEEFF', textColor:'#0C447C',
+   subs:['텐트(셸터)','침낭','담요','매트','의류 세트','세면도구 키트','의약품 키트','직접 입력'], units:['개','장','벌','세트','박스']},
+  {id:'food',  name:'식사 및 간식지원', color:'#E2EFDA', textColor:'#27500A',
+   subs:['즉석밥','컵라면','도시락','빵','과자류','밥차(간식차)','직접 입력'], units:['개','박스','대','세트']},
+  {id:'drink', name:'음료류', color:'#FFF2CC', textColor:'#633806',
+   subs:['생수(500mL)','생수(2L)','이온음료','두유','주스류','직접 입력'], units:['개','박스','팔레트']},
+  {id:'facility', name:'가전 및 기타시설', color:'#F2F2F2', textColor:'#444441',
+   subs:['이동식 에어컨','선풍기','전기장판','발전기','조명장비','이동식 화장실','직접 입력'], units:['대','개','세트','식']},
+];
+
+let regRowId = 0;
+const regItemState = {};
+const regSelectedOrgs = new Set();
+
+function initRegForm() {
+  CATS.forEach(c => { regItemState[c.id] = [{id:++regRowId, sub:'', customSub:'', qty:'', unit:''}]; });
+  regSelectedOrgs.clear();
+  document.getElementById('reg-time').textContent = nowStr();
+  renderRegCats();
+  renderRegOrgs();
+}
+
+function renderRegCats() {
+  document.getElementById('reg-cats-wrap').innerHTML = CATS.map((cat,idx) => `
+    <div class="cat-block">
+      <div class="cat-header" onclick="toggleCat('${cat.id}')">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:${cat.color};color:${cat.textColor};">${idx+1}</span>
+        <span style="font-size:13px;font-weight:600;margin-left:2px;">${cat.name}</span>
+        <span style="font-size:11px;color:var(--text-hint);" id="csum-${cat.id}"></span>
+        <span class="cat-arrow open" id="carrow-${cat.id}">▾</span>
+      </div>
+      <div class="cat-body open" id="cbody-${cat.id}"></div>
+    </div>`).join('');
+  CATS.forEach(cat => renderCatBody(cat.id));
+}
+
+function toggleCat(catId) {
+  const b = document.getElementById('cbody-'+catId);
+  const a = document.getElementById('carrow-'+catId);
+  b.classList.toggle('open', !b.classList.contains('open'));
+  a.classList.toggle('open', !a.classList.contains('open'));
+}
+
+function renderCatBody(catId) {
+  const cat = CATS.find(c=>c.id===catId);
+  const rows = regItemState[catId];
+  const bodyEl = document.getElementById('cbody-'+catId);
+  if (!bodyEl) return;
+  const total = rows.reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+  const sumEl = document.getElementById('csum-'+catId);
+  if (sumEl) sumEl.textContent = total>0 ? `${total.toLocaleString()}점 · ${rows.filter(r=>r.sub||r.customSub).length}종` : '';
+  bodyEl.innerHTML = `
+    <div class="col-labels" style="padding:0 0 4px;">
+      <div class="col-label">소분류</div><div class="col-label">직접 입력</div>
+      <div class="col-label" style="text-align:right;">수량</div><div class="col-label" style="text-align:center;">단위</div><div></div>
+    </div>
+    ${rows.map(r => {
+      const isCustom = r.sub==='직접 입력';
+      return `<div class="item-input-row">
+        <select class="form-input" style="padding:6px 8px;font-size:12px;" onchange="onRegSubChange('${catId}',${r.id},this.value)">
+          <option value="">소분류 선택</option>
+          ${cat.subs.map(s=>`<option ${r.sub===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input class="form-input" type="text" placeholder="${isCustom?'품목명 직접 입력':'─'}"
+          ${isCustom?'':'disabled style="opacity:0.35;background:var(--bg);"'}
+          value="${r.customSub}" onchange="onRegCustomChange('${catId}',${r.id},this.value)" style="font-size:12px;">
+        <input class="qty-inp" type="number" min="0" placeholder="0" value="${r.qty}"
+          oninput="onRegQtyChange('${catId}',${r.id},this.value)">
+        <select class="unit-sel" onchange="onRegUnitChange('${catId}',${r.id},this.value)">
+          ${cat.units.map(u=>`<option ${r.unit===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+        <button class="del-btn" onclick="delRegRow('${catId}',${r.id})">✕</button>
+      </div>`;
+    }).join('')}
+    <button class="add-sub-btn" onclick="addRegRow('${catId}')">+ 소분류 추가</button>`;
+}
+
+function addRegRow(catId) { regItemState[catId].push({id:++regRowId,sub:'',customSub:'',qty:'',unit:''}); renderCatBody(catId); }
+function delRegRow(catId, id) {
+  if (regItemState[catId].length===1) { regItemState[catId]=[{id:++regRowId,sub:'',customSub:'',qty:'',unit:''}]; }
+  else { regItemState[catId]=regItemState[catId].filter(r=>r.id!==id); }
+  renderCatBody(catId); updateRegSummary();
+}
+function onRegSubChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r){r.sub=val;r.customSub='';} renderCatBody(catId); updateRegSummary(); }
+function onRegCustomChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.customSub=val; updateRegSummary(); }
+function onRegQtyChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.qty=val; updateRegSummary(); }
+function onRegUnitChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.unit=val; }
+
+function renderRegOrgs() {
+  document.getElementById('reg-org-grid').innerHTML = ORGS.map(o=>`
+    <div class="org-toggle ${regSelectedOrgs.has(o.id)?'selected':''}" onclick="toggleRegOrg('${o.id}')">
+      <div class="org-check">${regSelectedOrgs.has(o.id)?'✓':''}</div>
+      <div><div class="org-name">${o.name}</div><div class="org-role">${o.role}</div></div>
+    </div>`).join('');
+}
+function toggleRegOrg(id) { regSelectedOrgs.has(id)?regSelectedOrgs.delete(id):regSelectedOrgs.add(id); renderRegOrgs(); updateRegSummary(); }
+
+function updateRegSummary() {
+  const regName=document.getElementById('f-reg-name').value.trim();
+  const sido=document.getElementById('f-sido').value;
+  const sigungu=document.getElementById('f-sigungu').value;
+  const type=document.getElementById('f-type').value;
+  const depart=document.getElementById('f-depart').value;
+  const from=document.getElementById('f-from').value;
+  const tags=[];
+  if(regName) tags.push(`<span class="stag">담당자 <strong>${regName}</strong></span>`);
+  if(sido||sigungu) tags.push(`<span class="stag"><strong>${[sido,sigungu].filter(Boolean).join(' ')}</strong>${type?' · '+type:''}</span>`);
+  if(depart) tags.push(`<span class="stag">${from||''} 출발 <strong>${depart.replace('T',' ').slice(0,13)}</strong></span>`);
+  CATS.forEach(cat=>{
+    const t=regItemState[cat.id].reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    if(t>0) tags.push(`<span class="stag">${cat.name.split(' ')[0]} <strong>${t.toLocaleString()}</strong></span>`);
+  });
+  if(regSelectedOrgs.size>0) tags.push(`<span class="stag">참여기관 <strong>${regSelectedOrgs.size}곳</strong></span>`);
+  const bar=document.getElementById('reg-summary-bar');
+  bar.style.display=tags.length>0?'block':'none';
+  document.getElementById('reg-summary-tags').innerHTML=tags.join('');
+}
+
+function submitRegForm() {
+  const regName=document.getElementById('f-reg-name').value.trim();
+  const type=document.getElementById('f-type').value;
+  const sido=document.getElementById('f-sido').value;
+  const sigungu=document.getElementById('f-sigungu').value;
+  const disDate=document.getElementById('f-disaster-date').value;
+  const cName=document.getElementById('f-contact-name').value.trim();
+  const cDept=document.getElementById('f-contact-dept').value.trim();
+  const cTel=document.getElementById('f-contact-tel').value.trim();
+  const recv=document.getElementById('f-recv-place').value.trim();
+  const from=document.getElementById('f-from').value;
+  const fromCustom=document.getElementById('f-from-custom').value.trim();
+  const depart=document.getElementById('f-depart').value;
+  const arrive=document.getElementById('f-arrive').value;
+  const vType=document.getElementById('f-vehicle-type').value;
+  const vCount=document.getElementById('f-vehicle-count').value;
+  const missing=[];
+  if(!regName) missing.push('담당자 이름');
+  if(!type) missing.push('재해 유형');
+  if(!sido) missing.push('시·도');
+  if(!sigungu) missing.push('시·군·구');
+  if(!disDate) missing.push('재해 발생일');
+  if(!cName) missing.push('수령 담당자 이름');
+  if(!cDept) missing.push('수령 담당자 소속');
+  if(!cTel) missing.push('수령 담당자 연락처');
+  if(!recv) missing.push('수령 장소');
+  if(!from) missing.push('출발지');
+  if(!depart) missing.push('출발 예정 일시');
+  if(!vType) missing.push('차량 종류');
+  if(!vCount) missing.push('차량 대수');
+  if(missing.length>0){alert('다음 필수 항목을 입력해주세요:\n\n'+missing.map(m=>'· '+m).join('\n'));return;}
+  const items=[];
+  CATS.forEach(cat=>{
+    const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
+    regItemState[cat.id].filter(r=>(r.sub||r.customSub)&&r.qty).forEach(r=>{
+      items.push({
+        id:iuid(), cat:catLabel, name:r.sub==='직접 입력'?r.customSub:r.sub, unit:r.unit||'개',
+        history:[{qty:parseInt(r.qty), date:nowStr(), who:regName, reason:'최초 등록', type:'initial'}],
+        stepIdx:0, times:[null,null,null,null]
+      });
+    });
+  });
+  const newCase = {
+    id:uid(), region:sido, sigungu:`${sido} ${sigungu}`, type,
+    from:from==='기타'?(fromCustom||from):from,
+    to:recv, toDept:`${cName} (${cDept}) · ${cTel}`,
+    depart, arrive, status:'preparing', vehicle:`${vType} ${vCount}대`,
+    registrant:regName, regDate:nowStr(), items, receipt:null,
+    contactName:cName, contactDept:cDept, contactTel:cTel, recvPlace:recv
+  };
+  DB.cases.push(newCase);
+  saveDB();
+  document.getElementById('reg-form-wrap').style.display='none';
+  document.getElementById('reg-success').style.display='block';
+  document.getElementById('reg-success-title').textContent=`${sido} ${sigungu} ${type} 구호 지원 등록 완료`;
+  showToast('등록됐어요!');
+}
+
+function resetRegForm() {
+  if(!confirm('입력한 내용을 모두 초기화할까요?')) return;
+  document.getElementById('f-reg-name').value='';
+  document.querySelectorAll('#reg-form-wrap .form-input').forEach(el=>{
+    if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
+  });
+  CATS.forEach(c=>{regItemState[c.id]=[{id:++regRowId,sub:'',customSub:'',qty:'',unit:''}];});
+  regSelectedOrgs.clear(); renderRegCats(); renderRegOrgs();
+  document.getElementById('reg-summary-bar').style.display='none';
+  document.getElementById('reg-time').textContent=nowStr();
+}
+
+function goRegBack() {
+  document.getElementById('reg-form-wrap').style.display='block';
+  document.getElementById('reg-success').style.display='none';
+  resetRegForm();
+}
+
+// ════════════════════════════════════════
+// 결과보고서
+// ════════════════════════════════════════
+function renderReport() {
+  renderReportRegion();
+}
+function switchReportTab(tab, btn) {
+  document.querySelectorAll('#page-report .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  ['region','org2','receipt2'].forEach(id=>{
+    document.getElementById('report-'+id).style.display=id===tab?'block':'none';
+  });
+  if(tab==='region') renderReportRegion();
+  else if(tab==='org2') renderReportOrg();
+  else renderReportReceipt();
+}
+function renderReportRegion() {
+  const cols=['구호물품','간식류','밥차(간식차)','음료류','진화물품'];
+  document.getElementById('report-region').innerHTML=`<div class="card"><div class="card-body">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th style="width:28px;">연번</th><th class="left">지역구분</th><th>총 합계</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>
+      <tr class="sum-row"><td></td><td class="left">합 계</td><td class="sum">${DB.cases.reduce((s,c)=>s+c.items.reduce((s2,it)=>s2+currentQty(it),0),0).toLocaleString()}</td>${cols.map(()=>'<td class="sum">-</td>').join('')}</tr>
+      ${DB.cases.map((c,i)=>{
+        const total=c.items.reduce((s,it)=>s+currentQty(it),0);
+        return `<tr><td>${i+1}</td><td class="left">${c.sigungu} (${c.type})</td><td class="sum">${total.toLocaleString()}</td>${cols.map(()=>'<td>-</td>').join('')}</tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>
+  </div></div>`;
+}
+function renderReportOrg() {
+  document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;">기관별 입력 데이터가 쌓이면 여기에 표시돼요.</p></div></div>`;
+}
+function renderReportReceipt() {
+  const done=DB.cases.filter(c=>c.status==='done');
+  document.getElementById('report-receipt2').innerHTML=`<div class="card"><div class="card-body">
+    <div class="tbl-wrap"><table>
+      <thead><tr><th style="width:28px;">연번</th><th class="left">지원 건명</th><th>확인 일시</th><th>확인자</th><th>수령 장소</th><th>특이사항</th></tr></thead>
+      <tbody>${done.map((c,i)=>c.receipt?`<tr>
+        <td>${i+1}</td><td class="left">${c.sigungu} ${c.type}</td>
+        <td>${c.receipt.datetime}</td><td>${c.receipt.name} (${c.receipt.dept})</td>
+        <td>${c.receipt.place}</td><td style="font-style:italic;color:var(--text-hint);">${c.receipt.memo||'-'}</td>
+      </tr>`:'').join('')}</tbody>
+    </table></div>
+  </div></div>`;
+}
+
+function exportExcel() { showToast('엑셀 내보내기 기능은 Firebase 연결 후 사용할 수 있어요'); }
+
+// ════════════════════════════════════════
+// 모달 외부 클릭 닫기
+// ════════════════════════════════════════
+['receipt-modal','qty-modal','del-modal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click', e=>{
+    if(e.target===e.currentTarget) e.currentTarget.classList.remove('open');
+  });
+});
+
+// ════════════════════════════════════════
+// 초기 실행
+// ════════════════════════════════════════
+loadDB();
+renderDashboard();
+</script>
+</body>
+</html>
