@@ -1083,6 +1083,39 @@ let qtyModalTarget = null;
 const openHist = new Set();
 
 let editingCaseId = null;
+const openEditLog = new Set();
+
+function toggleEditLog(caseId) {
+  openEditLog.has(caseId) ? openEditLog.delete(caseId) : openEditLog.add(caseId);
+  renderItems();
+}
+
+function renderEditLogPanel(c) {
+  if (!c.editLog || c.editLog.length === 0) return '';
+  const rows = [...c.editLog].reverse().map((log, i) => {
+    const changeRows = log.changes.map(ch => `
+      <div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.04);font-size:12px;">
+        <span style="min-width:120px;color:var(--text-sub);flex-shrink:0;">${ch.field}</span>
+        <span style="color:var(--red);text-decoration:line-through;flex:1;">${ch.before}</span>
+        <span style="color:var(--text-hint);margin:0 4px;">→</span>
+        <span style="color:var(--green);font-weight:500;flex:1;">${ch.after}</span>
+      </div>`).join('');
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;"></div>
+        <span style="font-size:12px;font-weight:600;color:var(--text);">${log.who}</span>
+        <span style="font-size:11px;color:var(--text-hint);">${log.date}</span>
+        <span style="font-size:11px;background:var(--amber-light);color:var(--amber);padding:1px 7px;border-radius:99px;">${log.changes.length}개 항목 변경</span>
+      </div>
+      <div style="margin-left:18px;">${changeRows}</div>
+    </div>`;
+  }).join('');
+
+  return `<div style="background:var(--amber-light);border-top:1px solid var(--amber-mid);padding:12px 16px;border-radius:0 0 var(--radius) var(--radius);">
+    <div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:10px;">수정 이력 (총 ${c.editLog.length}회)</div>
+    ${rows}
+  </div>`;
+}
 
 function renderItems() {
   if (editingCaseId) {
@@ -1103,12 +1136,14 @@ function renderItems() {
               <div style="font-size:12px;color:var(--text-sub);">출발: ${departFmt} · ${c.vehicle} · 총 ${totalQty.toLocaleString()}점 ${c.items.length}종</div>
               ${c.orgs&&c.orgs.length>0?`<div style="font-size:12px;color:var(--text-hint);margin-top:2px;">참여기관: ${c.orgs.map(o=>o.name).join(', ')}</div>`:''}
             </div>
-            <div style="display:flex;gap:6px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <span class="badge ${STATUS_CLASS[c.status]}"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>
+              ${c.editLog&&c.editLog.length>0?`<button class="btn btn-sm" onclick="toggleEditLog('${c.id}')" style="color:var(--amber);border-color:var(--amber-mid);">수정이력 ${c.editLog.length}회 ${openEditLog.has(c.id)?'▴':'▾'}</button>`:'<span style="font-size:11px;color:var(--text-hint);padding:4px 6px;">수정이력 없음</span>'}
               <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue-mid);" onclick="startEdit('${c.id}')">✏️ 수정</button>
               <button class="btn btn-sm btn-danger" onclick="openDeleteModal('${c.id}')">삭제</button>
             </div>
           </div>
+          ${openEditLog.has(c.id) ? renderEditLogPanel(c) : ''}
         </div>
       </div>`;
     }).join('');
@@ -1200,9 +1235,15 @@ function renderEditForm(caseId) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
       <div>
         <div style="font-size:18px;font-weight:700;">${c.sigungu} ${c.type} · 수정</div>
-        <div style="font-size:13px;color:var(--text-sub);margin-top:2px;">등록자: ${c.registrant} · ${c.regDate}</div>
+        <div style="font-size:13px;color:var(--text-sub);margin-top:2px;">최초 등록: ${c.registrant} · ${c.regDate}</div>
       </div>
       <button class="btn" onclick="cancelEdit()">← 목록으로</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;background:var(--blue-light);border:1px solid var(--blue-mid);border-radius:var(--radius-sm);padding:10px 16px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:700;color:var(--blue);white-space:nowrap;">수정자</span>
+      <div style="width:1px;height:18px;background:var(--blue-mid);"></div>
+      <input id="e-reg-editor" class="form-input" type="text" placeholder="수정자 이름 입력 (예: 홍길동)" style="width:180px;padding:5px 10px;border-color:var(--blue-mid);">
+      <span style="font-size:11px;color:var(--blue);">수정 일시: ${nowStr()}</span>
     </div>
 
     <div class="section-block">
@@ -1321,51 +1362,103 @@ function saveEdit(caseId) {
   const c = DB.cases.find(c=>c.id===caseId);
   if(!c) return;
 
+  const editor = document.getElementById('e-reg-editor') ? document.getElementById('e-reg-editor').value.trim() : c.registrant;
   const sido = document.getElementById('e-sido').value;
   const sigungu = document.getElementById('e-sigungu').value.trim();
   const type = document.getElementById('e-type').value;
   const from = document.getElementById('e-from').value;
   const fromCustom = document.getElementById('e-from-custom').value.trim();
+  const newFrom = from==='기타'?(fromCustom||from):from;
+  const newTo = document.getElementById('e-recv').value.trim();
+  const newToDept = document.getElementById('e-contact').value.trim();
+  const newDepart = document.getElementById('e-depart').value;
+  const newArrive = document.getElementById('e-arrive').value;
+  const newStatus = document.getElementById('e-status').value;
+  const newVehicle = `${document.getElementById('e-vehicle-type').value} ${document.getElementById('e-vehicle-count').value}대`;
+  const newOrgs = ORGS.filter(o=>window._editSelectedOrgs.has(o.id)).map(o=>({id:o.id,name:o.name,role:o.role}));
 
-  // 물품 재구성 (수량 변경 이력 유지)
+  // ── 변경 이력 생성
+  if (!c.editLog) c.editLog = [];
+  const changes = [];
+  const dt = nowStr();
+
+  // 기본 정보 비교
+  if (c.region !== sido || (c.sigungu !== `${sido} ${sigungu}`))
+    changes.push({field:'지역', before:`${c.sigungu} (${c.type})`, after:`${sido} ${sigungu} (${type})`});
+  else if (c.type !== type)
+    changes.push({field:'재해 유형', before:c.type, after:type});
+  if (c.to !== newTo)
+    changes.push({field:'수령 장소', before:c.to, after:newTo});
+  if (c.toDept !== newToDept)
+    changes.push({field:'수령 담당자', before:c.toDept, after:newToDept});
+  if (c.from !== newFrom)
+    changes.push({field:'출발지', before:c.from, after:newFrom});
+  if (c.depart !== newDepart)
+    changes.push({field:'출발 일시', before:c.depart||'-', after:newDepart||'-'});
+  if (c.arrive !== newArrive)
+    changes.push({field:'도착 예정', before:c.arrive||'-', after:newArrive||'-'});
+  if (c.status !== newStatus)
+    changes.push({field:'진행 상태', before:STATUS_LABEL[c.status], after:STATUS_LABEL[newStatus]});
+  if (c.vehicle !== newVehicle)
+    changes.push({field:'차량', before:c.vehicle, after:newVehicle});
+
+  // 참여 기관 비교
+  const prevOrgNames = (c.orgs||[]).map(o=>o.name).sort().join(', ');
+  const newOrgNames = newOrgs.map(o=>o.name).sort().join(', ');
+  if (prevOrgNames !== newOrgNames)
+    changes.push({field:'참여 기관', before:prevOrgNames||'없음', after:newOrgNames||'없음'});
+
+  // 물품 재구성 + 수량 변경 감지
   const newItems = [];
   CATS.forEach(cat => {
     const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
     window._editItemState[cat.id].filter(r=>(r.sub||r.customSub)&&r.qty).forEach(r=>{
       const name = r.sub==='직접 입력'?r.customSub:r.sub;
       const qty = parseInt(r.qty)||0;
-      // 기존 아이템이면 이력 유지, 새 아이템이면 새로 생성
       const orig = r.origId ? c.items.find(it=>it.id===r.origId) : null;
       if(orig) {
         const prevQty = currentQty(orig);
         if(qty !== prevQty) {
-          orig.history.push({qty, date:nowStr(), who:c.registrant, reason:'수정으로 인한 수량 변경', type:'change', prev:prevQty});
+          orig.history.push({qty, date:dt, who:editor, reason:'수정', type:'change', prev:prevQty});
+          changes.push({field:`물품 수량 (${name})`, before:`${prevQty.toLocaleString()} ${orig.history[0].unit}`, after:`${qty.toLocaleString()} ${r.unit}`});
         }
         orig.name = name;
-        orig.history[orig.history.length-1].unit = r.unit;
         newItems.push(orig);
       } else {
         newItems.push({
           id:iuid(), cat:catLabel, name, unit:r.unit||'개',
-          history:[{qty, date:nowStr(), who:c.registrant, reason:'수정 등록', type:'initial'}],
+          history:[{qty, date:dt, who:editor, reason:'수정 시 추가', type:'initial'}],
           stepIdx:0, times:[null,null,null,null]
         });
+        changes.push({field:`물품 추가 (${name})`, before:'-', after:`${qty.toLocaleString()} ${r.unit||'개'}`});
       }
     });
   });
 
+  // 삭제된 물품 감지
+  c.items.forEach(orig => {
+    const stillExists = newItems.find(it=>it.id===orig.id);
+    if(!stillExists) changes.push({field:`물품 삭제 (${orig.name})`, before:`${currentQty(orig).toLocaleString()} ${orig.history[0].unit}`, after:'-'});
+  });
+
+  // 변경사항이 있으면 이력 저장
+  if (changes.length > 0) {
+    c.editLog.push({ date: dt, who: editor, changes });
+  }
+
+  // 데이터 업데이트
   c.region = sido;
   c.sigungu = `${sido} ${sigungu}`;
   c.type = type;
-  c.from = from==='기타'?(fromCustom||from):from;
-  c.to = document.getElementById('e-recv').value.trim();
-  c.toDept = document.getElementById('e-contact').value.trim();
-  c.depart = document.getElementById('e-depart').value;
-  c.arrive = document.getElementById('e-arrive').value;
-  c.status = document.getElementById('e-status').value;
-  c.vehicle = `${document.getElementById('e-vehicle-type').value} ${document.getElementById('e-vehicle-count').value}대`;
+  c.from = newFrom;
+  c.to = newTo;
+  c.toDept = newToDept;
+  c.depart = newDepart;
+  c.arrive = newArrive;
+  c.status = newStatus;
+  c.vehicle = newVehicle;
   c.note = document.getElementById('e-note').value.trim();
-  c.orgs = ORGS.filter(o=>window._editSelectedOrgs.has(o.id)).map(o=>({id:o.id,name:o.name,role:o.role}));
+  c.orgs = newOrgs;
   c.items = newItems;
 
   saveSingleCase(c);
@@ -1373,7 +1466,7 @@ function saveEdit(caseId) {
   window._editCaseId = null;
   editingCaseId = null;
   renderItems();
-  showToast('저장됐어요!');
+  showToast(changes.length > 0 ? `${changes.length}개 항목이 수정됐어요!` : '저장됐어요!');
 }
 
 function toggleHist(itemId) {
