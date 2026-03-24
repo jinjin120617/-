@@ -403,13 +403,17 @@ tr.sum-row td { font-weight: 700; background: var(--bg); border-top: 1px solid v
           </div>
         </div>
 
-        <!-- 섹션 2: 물품 -->
+        <!-- 섹션 2: 지원기관 + 물품 -->
         <div class="section-block">
           <div class="section-head">
             <div class="section-num" style="background:var(--green-light);color:var(--green);">2</div>
-            <div class="section-title">물품 종류 · 수량</div>
+            <div class="section-title">지원 기관 · 물품 종류 · 수량</div>
           </div>
-          <div id="reg-cats-wrap"></div>
+          <div id="reg-org-items-wrap">
+            <!-- 기관 추가 버튼 -->
+            <button class="btn btn-primary" style="margin-bottom:12px;" onclick="addOrgBlock()">+ 지원 기관 추가</button>
+            <div id="reg-org-blocks"></div>
+          </div>
         </div>
 
         <!-- 섹션 3: 출발 -->
@@ -1823,12 +1827,153 @@ let regRowId = 0;
 const regItemState = {};
 const regSelectedOrgs = new Set();
 
+// 기관별 물품 블록 상태
+let orgBlocks = []; // [{blockId, orgId, items:[{id,sub,customSub,qty,unit}]}]
+let orgBlockId = 0;
+
 function initRegForm() {
-  CATS.forEach(c => { regItemState[c.id] = [{id:++regRowId, sub:'', customSub:'', qty:'', unit:''}]; });
-  regSelectedOrgs.clear();
+  orgBlocks = [];
   document.getElementById('reg-time').textContent = nowStr();
-  renderRegCats();
-  renderRegOrgs();
+  document.getElementById('reg-org-blocks').innerHTML = '';
+  updateRegSummary();
+}
+
+function addOrgBlock() {
+  const bid = ++orgBlockId;
+  orgBlocks.push({ blockId: bid, orgId: '', items: [{id: Date.now(), sub:'', customSub:'', qty:'', unit:'개'}] });
+  renderOrgBlocks();
+}
+
+function removeOrgBlock(bid) {
+  orgBlocks = orgBlocks.filter(b=>b.blockId!==bid);
+  renderOrgBlocks();
+  updateRegSummary();
+}
+
+function onOrgBlockOrgChange(bid, val) {
+  const b = orgBlocks.find(b=>b.blockId===bid);
+  if(b) b.orgId = val;
+  renderOrgBlocks();
+  updateRegSummary();
+}
+
+function addOrgBlockItem(bid) {
+  const b = orgBlocks.find(b=>b.blockId===bid);
+  if(b) b.items.push({id:Date.now(), sub:'', customSub:'', qty:'', unit:'개'});
+  renderOrgBlocks();
+}
+
+function removeOrgBlockItem(bid, iid) {
+  const b = orgBlocks.find(b=>b.blockId===bid);
+  if(!b) return;
+  if(b.items.length===1) b.items=[{id:Date.now(),sub:'',customSub:'',qty:'',unit:'개'}];
+  else b.items = b.items.filter(it=>it.id!==iid);
+  renderOrgBlocks();
+  updateRegSummary();
+}
+
+function onOBSubChange(bid, iid, val) {
+  const b=orgBlocks.find(b=>b.blockId===bid); if(!b) return;
+  const it=b.items.find(it=>it.id===iid); if(!it) return;
+  it.sub=val; it.customSub='';
+  renderOrgBlocks(); updateRegSummary();
+}
+
+function onOBCustomChange(bid, iid, val) {
+  const b=orgBlocks.find(b=>b.blockId===bid); if(!b) return;
+  const it=b.items.find(it=>it.id===iid); if(it) it.customSub=val;
+  updateRegSummary();
+}
+
+function onOBQtyChange(bid, iid, val) {
+  const b=orgBlocks.find(b=>b.blockId===bid); if(!b) return;
+  const it=b.items.find(it=>it.id===iid); if(it) it.qty=val;
+  updateRegSummary();
+}
+
+function onOBUnitChange(bid, iid, val) {
+  const b=orgBlocks.find(b=>b.blockId===bid); if(!b) return;
+  const it=b.items.find(it=>it.id===iid); if(it) it.unit=val;
+}
+
+function onOBCatChange(bid, iid, val) {
+  const b=orgBlocks.find(b=>b.blockId===bid); if(!b) return;
+  const it=b.items.find(it=>it.id===iid); if(it) { it.cat=val; it.sub=''; it.customSub=''; }
+  renderOrgBlocks();
+}
+
+function renderOrgBlocks() {
+  if(orgBlocks.length===0) {
+    document.getElementById('reg-org-blocks').innerHTML='';
+    return;
+  }
+  document.getElementById('reg-org-blocks').innerHTML = orgBlocks.map(b => {
+    const orgObj = ORGS.find(o=>o.id===b.orgId);
+    const orgSelected = !!b.orgId;
+    const orgColors = {
+      redcross:{bg:'#FCEBEB',color:'#A32D2D'},relief2:{bg:'#EAF3DE',color:'#27500A'},
+      volunteer:{bg:'#FAEEDA',color:'#633806'},welfare:{bg:'#FAEEDA',color:'#633806'},
+      food2:{bg:'#FBEAF0',color:'#72243E'},citizen:{bg:'#FBEAF0',color:'#72243E'},
+      safety:{bg:'#F1EFE8',color:'#444441'},other:{bg:'#E6F1FB',color:'#0C447C'}
+    };
+    const cs = orgColors[b.orgId]||{bg:'#E6F1FB',color:'#0C447C'};
+
+    const itemsHtml = orgSelected ? b.items.map(it => {
+      // 대분류 선택
+      const catOpts = ['진화장비','구호물품','식사·간식','음료류','가전·시설'];
+      const curCat = CATS.find(c=>{
+        const label=c.id==='fire'?'진화장비':c.id==='relief'?'구호물품':c.id==='food'?'식사·간식':c.id==='drink'?'음료류':'가전·시설';
+        return label===(it.cat||'구호물품');
+      })||CATS[1];
+      const curCatLabel = it.cat||'구호물품';
+      const isCustom = it.sub==='직접 입력';
+
+      return `<div style="display:grid;grid-template-columns:110px 150px 1fr 70px 50px 26px;gap:6px;align-items:center;margin-bottom:6px;">
+        <select class="form-input" style="padding:5px 6px;font-size:11px;" onchange="onOBCatChange(${b.blockId},${it.id},this.value)">
+          ${catOpts.map(c=>`<option ${curCatLabel===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <select class="form-input" style="padding:5px 6px;font-size:11px;" onchange="onOBSubChange(${b.blockId},${it.id},this.value)">
+          <option value="">소분류 선택</option>
+          ${curCat.subs.map(s=>`<option ${it.sub===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input class="form-input" type="text" placeholder="${isCustom?'품목명 직접 입력':'─'}"
+          ${isCustom?'':'disabled style="opacity:0.35;background:var(--bg);"'}
+          value="${it.customSub||''}" onchange="onOBCustomChange(${b.blockId},${it.id},this.value)" style="font-size:12px;">
+        <input class="qty-inp" type="number" min="0" placeholder="0" value="${it.qty}"
+          oninput="onOBQtyChange(${b.blockId},${it.id},this.value)">
+        <select class="unit-sel" onchange="onOBUnitChange(${b.blockId},${it.id},this.value)">
+          ${curCat.units.map(u=>`<option ${it.unit===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+        <button class="del-btn" onclick="removeOrgBlockItem(${b.blockId},${it.id})">✕</button>
+      </div>`;
+    }).join('') : '';
+
+    return `<div style="border:1px solid ${orgSelected?'var(--blue-mid)':'var(--border)'};border-radius:var(--radius);overflow:hidden;margin-bottom:10px;">
+      <!-- 기관 선택 헤더 -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:${orgSelected?'var(--blue-light)':'var(--bg)'};">
+        ${orgSelected?`<div style="width:28px;height:28px;border-radius:var(--radius-sm);background:${cs.bg};color:${cs.color};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${orgObj.name[0]}</div>`:'<div style="width:28px;height:28px;border-radius:var(--radius-sm);background:var(--border);flex-shrink:0;"></div>'}
+        <select class="form-input" style="flex:1;font-size:13px;font-weight:${orgSelected?'600':'400'};" onchange="onOrgBlockOrgChange(${b.blockId},this.value)">
+          <option value="">지원 기관을 선택하세요</option>
+          ${ORGS.map(o=>`<option value="${o.id}" ${b.orgId===o.id?'selected':''}>${o.name} (${o.role})</option>`).join('')}
+        </select>
+        <button class="del-btn" style="flex-shrink:0;" onclick="removeOrgBlock(${b.blockId})">✕</button>
+      </div>
+      <!-- 물품 입력 (기관 선택 후에만 표시) -->
+      ${orgSelected ? `
+      <div style="padding:10px 14px;border-top:1px solid var(--blue-mid);">
+        <div style="display:grid;grid-template-columns:110px 150px 1fr 70px 50px 26px;gap:6px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;color:var(--text-hint);">대분류</div>
+          <div style="font-size:10px;color:var(--text-hint);">소분류</div>
+          <div style="font-size:10px;color:var(--text-hint);">직접 입력</div>
+          <div style="font-size:10px;color:var(--text-hint);text-align:right;">수량</div>
+          <div style="font-size:10px;color:var(--text-hint);text-align:center;">단위</div>
+          <div></div>
+        </div>
+        ${itemsHtml}
+        <button class="add-sub-btn" onclick="addOrgBlockItem(${b.blockId})">+ 물품 추가</button>
+      </div>` : `<div style="padding:10px 14px;font-size:12px;color:var(--text-hint);text-align:center;border-top:1px solid var(--border);">기관을 선택하면 물품을 입력할 수 있어요</div>`}
+    </div>`;
+  }).join('');
 }
 
 function renderRegCats() {
@@ -1918,11 +2063,19 @@ function updateRegSummary() {
   if(regName) tags.push(`<span class="stag">담당자 <strong>${regName}</strong></span>`);
   if(sido||sigungu) tags.push(`<span class="stag"><strong>${[sido,sigungu].filter(Boolean).join(' ')}</strong>${type?' · '+type:''}</span>`);
   if(depart) tags.push(`<span class="stag">${from||''} 출발 <strong>${depart.replace('T',' ').slice(0,13)}</strong></span>`);
-  CATS.forEach(cat=>{
-    const t=regItemState[cat.id].reduce((s,r)=>s+(parseInt(r.qty)||0),0);
-    if(t>0) tags.push(`<span class="stag">${cat.name.split(' ')[0]} <strong>${t.toLocaleString()}</strong></span>`);
+  const totalQtyByOrg = {};
+  orgBlocks.forEach(b=>{
+    if(!b.orgId) return;
+    const orgObj=ORGS.find(o=>o.id===b.orgId);
+    const orgName=orgObj?orgObj.name:'미선택';
+    const qty=b.items.reduce((s,it)=>s+(parseInt(it.qty)||0),0);
+    if(qty>0) totalQtyByOrg[orgName]=(totalQtyByOrg[orgName]||0)+qty;
   });
-  if(regSelectedOrgs.size>0) tags.push(`<span class="stag">참여기관 <strong>${regSelectedOrgs.size}곳</strong></span>`);
+  Object.entries(totalQtyByOrg).forEach(([name,qty])=>{
+    tags.push(`<span class="stag">${name} <strong>${qty.toLocaleString()}점</strong></span>`);
+  });
+  if(orgBlocks.filter(b=>b.orgId).length>0)
+    tags.push(`<span class="stag">참여기관 <strong>${orgBlocks.filter(b=>b.orgId).length}곳</strong></span>`);
   const bar=document.getElementById('reg-summary-bar');
   bar.style.display=tags.length>0?'block':'none';
   document.getElementById('reg-summary-tags').innerHTML=tags.join('');
@@ -1949,18 +2102,26 @@ function submitRegForm() {
     if(!confirm('지역 정보가 입력되지 않았어요. 그래도 등록할까요?')) return;
   }
   const items=[];
-  CATS.forEach(cat=>{
-    const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
-    regItemState[cat.id].filter(r=>(r.sub||r.customSub)&&r.qty).forEach(r=>{
-      const orgObj = r.orgId ? ORGS.find(o=>o.id===r.orgId) : null;
+  orgBlocks.forEach(b => {
+    const orgObj = ORGS.find(o=>o.id===b.orgId);
+    b.items.filter(it=>(it.sub||it.customSub)&&it.qty).forEach(it=>{
       items.push({
-        id:iuid(), cat:catLabel, name:r.sub==='직접 입력'?r.customSub:r.sub, unit:r.unit||'개',
-        history:[{qty:parseInt(r.qty), date:nowStr(), who:regName, reason:'최초 등록', type:'initial'}],
+        id:iuid(),
+        cat: it.cat||'구호물품',
+        name: it.sub==='직접 입력'?it.customSub:it.sub,
+        unit: it.unit||'개',
+        history:[{qty:parseInt(it.qty), date:nowStr(), who:regName, reason:'최초 등록', type:'initial'}],
         stepIdx:0, times:[null,null,null,null],
-        orgId: r.orgId||'', orgName: orgObj?orgObj.name:''
+        orgId: b.orgId||'',
+        orgName: orgObj?orgObj.name:''
       });
     });
   });
+  // 참여 기관 목록 (물품 등록된 기관들)
+  const orgsFromBlocks = orgBlocks.filter(b=>b.orgId).map(b=>{
+    const o=ORGS.find(org=>org.id===b.orgId);
+    return o?{id:o.id,name:o.name,role:o.role}:null;
+  }).filter(Boolean);
   const orgs = ORGS.filter(o => regSelectedOrgs.has(o.id)).map(o => ({id:o.id, name:o.name, role:o.role}));
   const newCase = {
     id:uid(), region:sido, sigungu:`${sido} ${sigungu}`, type,
@@ -1969,7 +2130,7 @@ function submitRegForm() {
     depart, arrive, status:'preparing', vehicle:`${vType} ${vCount}대`,
     registrant:regName, regDate:nowStr(), items, receipt:null,
     contactName:cName, contactDept:cDept, contactTel:cTel, recvPlace:recv,
-    orgs: orgs
+    orgs: orgsFromBlocks
   };
   DB.cases.push(newCase);
   saveSingleCase(newCase);
@@ -1989,8 +2150,8 @@ function resetRegForm() {
   document.querySelectorAll('#reg-form-wrap .form-input').forEach(el=>{
     if(el.tagName==='SELECT') el.selectedIndex=0; else el.value='';
   });
-  CATS.forEach(c=>{regItemState[c.id]=[{id:++regRowId,sub:'',customSub:'',qty:'',unit:''}];});
-  regSelectedOrgs.clear(); renderRegCats(); renderRegOrgs();
+  orgBlocks=[];
+  document.getElementById('reg-org-blocks').innerHTML='';
   document.getElementById('reg-summary-bar').style.display='none';
   document.getElementById('reg-time').textContent=nowStr();
 }
