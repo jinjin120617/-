@@ -445,8 +445,9 @@ tr.sum-row td { font-weight: 700; background: var(--bg); border-top: 1px solid v
         <div class="section-block">
           <div class="section-head">
             <div class="section-num" style="background:#FBEAF0;color:#72243E;">4</div>
-            <div class="section-title">참여 기관 선택</div>
+            <div class="section-title">참여 기관 전체 선택 <span style="font-size:12px;font-weight:400;color:var(--text-hint);">(물품별 기관은 ② 물품 항목 옆에서 선택)</span></div>
           </div>
+          <div style="font-size:12px;color:var(--text-hint);margin-bottom:10px;">지원 건 전체에 참여하는 기관을 선택해주세요.</div>
           <div class="org-grid" id="reg-org-grid"></div>
         </div>
 
@@ -1042,35 +1043,42 @@ function renderDashRegion() {
 }
 
 function renderDashOrg() {
-  // 모든 지원 건에서 기관별로 집계
+  // 물품별 담당 기관 + 지원 건 전체 참여 기관 통합 집계
   const orgMap = {};
+
   DB.cases.forEach(c => {
-    if (!c.orgs || c.orgs.length === 0) return;
-    c.orgs.forEach(o => {
-      if (!orgMap[o.name]) {
-        orgMap[o.name] = { name: o.name, role: o.role, cases: [], totalItems: 0 };
-      }
-      orgMap[o.name].cases.push(c);
-      orgMap[o.name].totalItems += c.items.reduce((s, it) => s + currentQty(it), 0);
+    // ① 물품별 담당 기관 집계
+    c.items.forEach(it => {
+      if (!it.orgName) return;
+      if (!orgMap[it.orgName]) orgMap[it.orgName] = { name:it.orgName, role:'물품 지원', itemQty:0, caseSet:new Set() };
+      orgMap[it.orgName].itemQty += currentQty(it);
+      orgMap[it.orgName].caseSet.add(c.id);
+    });
+    // ② 지원 건 전체 참여 기관 집계 (물품 미배정 기관)
+    if (c.orgs) c.orgs.forEach(o => {
+      if (!orgMap[o.name]) orgMap[o.name] = { name:o.name, role:o.role, itemQty:0, caseSet:new Set() };
+      else if (!orgMap[o.name].role || orgMap[o.name].role === '물품 지원') orgMap[o.name].role = o.role;
+      orgMap[o.name].caseSet.add(c.id);
     });
   });
 
   const orgs = Object.values(orgMap);
 
   if (orgs.length === 0) {
-    document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">신규 지원 등록 시 참여 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
+    document.getElementById('dash-org').innerHTML = `<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">물품 등록 시 담당 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
     return;
   }
 
   const rows = orgs.map((o, i) => {
-    const caseNames = o.cases.map(c => `${c.sigungu} ${c.type}`).join(', ');
-    const statuses = o.cases.map(c => `<span class="badge ${STATUS_CLASS[c.status]}" style="font-size:10px;"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>`).join(' ');
+    const casesArr = DB.cases.filter(c=>o.caseSet.has(c.id));
+    const caseNames = casesArr.map(c=>`${c.sigungu} ${c.type}`).join(', ');
+    const statuses = casesArr.map(c=>`<span class="badge ${STATUS_CLASS[c.status]}" style="font-size:10px;"><span class="badge-dot"></span>${STATUS_LABEL[c.status]}</span>`).join(' ');
     return `<tr>
       <td>${i+1}</td>
       <td class="left" style="font-weight:600;">${o.name}</td>
       <td style="color:var(--text-sub);font-size:12px;">${o.role}</td>
-      <td>${o.cases.length}건</td>
-      <td class="sum">${o.totalItems.toLocaleString()}</td>
+      <td>${o.caseSet.size}건</td>
+      <td class="sum">${o.itemQty > 0 ? o.itemQty.toLocaleString() : '-'}</td>
       <td class="left" style="font-size:12px;color:var(--text-sub);">${caseNames}</td>
       <td>${statuses}</td>
     </tr>`;
@@ -1083,7 +1091,7 @@ function renderDashOrg() {
         <th class="left">기관명</th>
         <th class="left">역할</th>
         <th>참여 건수</th>
-        <th>총 물품(점)</th>
+        <th>담당 물품(점)</th>
         <th class="left">참여 지원 건</th>
         <th>상태</th>
       </tr></thead>
@@ -1379,9 +1387,12 @@ function renderEditForm(caseId) {
         <span class="cat-arrow open" id="ecarrow-${cat.id}">▾</span>
       </div>
       <div class="cat-body open" id="ecbody-${cat.id}">
-        <div class="col-labels" style="padding:0 0 4px;">
+        <div class="col-labels" style="padding:0 0 4px;grid-template-columns:160px 1fr 70px 50px 130px 26px;">
           <div class="col-label">소분류</div><div class="col-label">직접 입력</div>
-          <div class="col-label" style="text-align:right;">수량</div><div class="col-label" style="text-align:center;">단위</div><div></div>
+          <div class="col-label" style="text-align:right;">수량</div>
+          <div class="col-label" style="text-align:center;">단위</div>
+          <div class="col-label">담당 기관</div>
+          <div></div>
         </div>
         ${bodyRows}
         <button class="add-sub-btn" onclick="addEditRow('${cat.id}')">+ 소분류 추가</button>
@@ -1884,6 +1895,7 @@ function onRegSubChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id
 function onRegCustomChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.customSub=val; updateRegSummary(); }
 function onRegQtyChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.qty=val; updateRegSummary(); }
 function onRegUnitChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.unit=val; }
+function onRegOrgChange(catId,id,val) { const r=regItemState[catId].find(r=>r.id===id); if(r) r.orgId=val; }
 
 function renderRegOrgs() {
   document.getElementById('reg-org-grid').innerHTML = ORGS.map(o=>`
@@ -1939,10 +1951,12 @@ function submitRegForm() {
   CATS.forEach(cat=>{
     const catLabel = cat.id==='fire'?'진화장비':cat.id==='relief'?'구호물품':cat.id==='food'?'식사·간식':cat.id==='drink'?'음료류':'가전·시설';
     regItemState[cat.id].filter(r=>(r.sub||r.customSub)&&r.qty).forEach(r=>{
+      const orgObj = r.orgId ? ORGS.find(o=>o.id===r.orgId) : null;
       items.push({
         id:iuid(), cat:catLabel, name:r.sub==='직접 입력'?r.customSub:r.sub, unit:r.unit||'개',
         history:[{qty:parseInt(r.qty), date:nowStr(), who:regName, reason:'최초 등록', type:'initial'}],
-        stepIdx:0, times:[null,null,null,null]
+        stepIdx:0, times:[null,null,null,null],
+        orgId: r.orgId||'', orgName: orgObj?orgObj.name:''
       });
     });
   });
@@ -2057,31 +2071,39 @@ function renderReportRegion() {
 function renderReportOrg() {
   const orgMap = {};
   DB.cases.forEach(c => {
-    if (!c.orgs || c.orgs.length === 0) return;
-    c.orgs.forEach(o => {
-      if (!orgMap[o.name]) orgMap[o.name] = { name: o.name, role: o.role, cases: [], totalItems: 0 };
-      orgMap[o.name].cases.push(c);
-      orgMap[o.name].totalItems += c.items.reduce((s, it) => s + currentQty(it), 0);
+    c.items.forEach(it => {
+      if (!it.orgName) return;
+      if (!orgMap[it.orgName]) orgMap[it.orgName] = { name:it.orgName, role:'물품 지원', itemQty:0, caseSet:new Set() };
+      orgMap[it.orgName].itemQty += currentQty(it);
+      orgMap[it.orgName].caseSet.add(c.id);
+    });
+    if (c.orgs) c.orgs.forEach(o => {
+      if (!orgMap[o.name]) orgMap[o.name] = { name:o.name, role:o.role, itemQty:0, caseSet:new Set() };
+      else if (orgMap[o.name].role === '물품 지원') orgMap[o.name].role = o.role;
+      orgMap[o.name].caseSet.add(c.id);
     });
   });
   const orgs = Object.values(orgMap);
   if (orgs.length === 0) {
-    document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">신규 지원 등록 시 참여 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
+    document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body"><p style="color:var(--text-hint);font-size:13px;text-align:center;padding:1rem 0;">물품 등록 시 담당 기관을 선택하면 여기에 표시돼요.</p></div></div>`;
     return;
   }
-  const rows = orgs.map((o,i) => `<tr>
-    <td>${i+1}</td>
-    <td class="left" style="font-weight:600;">${o.name}</td>
-    <td style="color:var(--text-sub);font-size:12px;">${o.role}</td>
-    <td>${o.cases.length}건</td>
-    <td class="sum">${o.totalItems.toLocaleString()}</td>
-    <td class="left" style="font-size:12px;color:var(--text-sub);">${o.cases.map(c=>c.sigungu+' '+c.type).join(', ')}</td>
-  </tr>`).join('');
+  const rows = orgs.map((o,i) => {
+    const casesArr = DB.cases.filter(c=>o.caseSet.has(c.id));
+    return `<tr>
+      <td>${i+1}</td>
+      <td class="left" style="font-weight:600;">${o.name}</td>
+      <td style="color:var(--text-sub);font-size:12px;">${o.role}</td>
+      <td>${o.caseSet.size}건</td>
+      <td class="sum">${o.itemQty > 0 ? o.itemQty.toLocaleString() : '-'}</td>
+      <td class="left" style="font-size:12px;color:var(--text-sub);">${casesArr.map(c=>c.sigungu+' '+c.type).join(', ')}</td>
+    </tr>`;
+  }).join('');
   document.getElementById('report-org2').innerHTML=`<div class="card"><div class="card-body">
     <div class="tbl-wrap"><table>
       <thead><tr>
         <th style="width:28px;">연번</th><th class="left">기관명</th><th class="left">역할</th>
-        <th>참여 건수</th><th>총 물품(점)</th><th class="left">참여 지원 건</th>
+        <th>참여 건수</th><th>담당 물품(점)</th><th class="left">참여 지원 건</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
