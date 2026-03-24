@@ -857,12 +857,11 @@ function renderDashDone() {
 }
 
 function renderDashList() {
-  const inProgress = DB.cases.filter(c=>c.status!=='done');
-  let filtered = inProgress;
-  if (dashFilter === '이송 중') filtered = inProgress.filter(c=>c.status==='transit');
-  else if (dashFilter === '준비 중') filtered = inProgress.filter(c=>c.status==='preparing');
-  else if (dashFilter === '수령 완료') filtered = inProgress.filter(c=>c.status==='done');
-  else if (dashFilter === '수령 확인 대기') filtered = inProgress.filter(c=>c.status==='arrived');
+  let filtered = DB.cases;
+  if (dashFilter === '이송 중') filtered = DB.cases.filter(c=>c.status==='transit');
+  else if (dashFilter === '준비 중') filtered = DB.cases.filter(c=>c.status==='preparing');
+  else if (dashFilter === '수령 완료') filtered = DB.cases.filter(c=>c.status==='done');
+  else if (dashFilter === '수령 확인 대기') filtered = DB.cases.filter(c=>c.status==='arrived');
 
   document.getElementById('dash-list').innerHTML = filtered.length === 0
     ? '<div style="padding:2rem;text-align:center;color:var(--text-hint);">해당하는 지원 건이 없어요</div>'
