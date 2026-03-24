@@ -1797,7 +1797,8 @@ function confirmDelete() {
   DB.cases = DB.cases.filter(c=>c.id!==deleteTargetId);
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
   document.getElementById('del-modal').classList.remove('open');
-  renderDashboard();
+  // 삭제 완료 즉시 대시보드 갱신
+  showPage('dashboard');
   showToast('삭제됐어요.');
   setTimeout(() => { window._dbLock = false; }, 2000);
 }
