@@ -707,8 +707,10 @@ function saveDB() {
   if (window.fbSave) DB.cases.forEach(c => window.fbSave(c));
 }
 function saveSingleCase(c) {
+  window._dbLock = true;
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
-  if (window.fbSave) window.fbSave(c);
+  if (window.fbSave) window.fbSave(c).then(()=>{ setTimeout(()=>{ window._dbLock = false; }, 1500); }).catch(()=>{ window._dbLock = false; });
+  else { setTimeout(()=>{ window._dbLock = false; }, 1500); }
 }
 function deleteSingleCase(id) {
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
@@ -1779,11 +1781,14 @@ function openDeleteModal(caseId) {
   document.getElementById('del-modal').classList.add('open');
 }
 function confirmDelete() {
+  window._dbLock = true;
   deleteSingleCase(deleteTargetId);
   DB.cases = DB.cases.filter(c=>c.id!==deleteTargetId);
   try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
   document.getElementById('del-modal').classList.remove('open');
-  renderDashboard(); showToast('삭제됐어요.');
+  renderDashboard();
+  showToast('삭제됐어요.');
+  setTimeout(() => { window._dbLock = false; }, 2000);
 }
 
 // ════════════════════════════════════════
@@ -2124,20 +2129,16 @@ renderDashboard();
 function connectFirebase() {
   if (!window.fbListen) return;
   document.getElementById('firebase-banner').style.display = 'none';
-  let isFirst = true;
   window.fbListen((cases) => {
-    if (cases.length > 0 || isFirst) {
-      isFirst = false;
-      DB.cases = cases;
-      try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
-      // 이송현황 페이지는 사용자가 타임라인 열어놨을 수 있으므로 외부 변경 시만 재렌더
-      const activePage = document.querySelector('.page.active');
-      if (activePage) {
-        const pageId = activePage.id.replace('page-','');
-        // 타임라인 열려있을 때 Firebase 재동기화로 닫히는 것 방지
-        if (pageId === 'shipment' && window._tlLock) return;
-        renderPage(pageId);
-      }
+    // 삭제 중이거나 저장 중일 때는 Firebase 재동기화 무시
+    if (window._dbLock) return;
+    DB.cases = cases;
+    try { localStorage.setItem('relief_db', JSON.stringify(DB)); } catch(e) {}
+    const activePage = document.querySelector('.page.active');
+    if (activePage) {
+      const pageId = activePage.id.replace('page-','');
+      if (pageId === 'shipment' && window._tlLock) return;
+      renderPage(pageId);
     }
   });
 }
